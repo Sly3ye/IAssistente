@@ -10,6 +10,7 @@ class ChatList extends ConsumerWidget {
   final ScrollController controller;
   final bool isSending;
   final String streamingText;
+  final List<String> latestAssistantSources;
 
   const ChatList({
     super.key,
@@ -17,6 +18,7 @@ class ChatList extends ConsumerWidget {
     required this.controller,
     required this.isSending,
     required this.streamingText,
+    required this.latestAssistantSources,
   });
 
   @override
@@ -86,6 +88,14 @@ class ChatList extends ConsumerWidget {
       );
     }
 
+    var latestAssistantIndex = -1;
+    for (var i = displayMessages.length - 1; i >= 0; i--) {
+      if (displayMessages[i].role == "assistant") {
+        latestAssistantIndex = i;
+        break;
+      }
+    }
+
     return ListView.builder(
       controller: controller,
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
@@ -98,6 +108,18 @@ class ChatList extends ConsumerWidget {
           editTooltip: strings.edit,
           copyTooltip: strings.copy,
           copiedMessage: strings.textCopied,
+          sourcesTitle:
+              message.role == "assistant" &&
+                  latestAssistantSources.isNotEmpty &&
+                  index == latestAssistantIndex
+              ? strings.ragSourcesTitle(latestAssistantSources.length)
+              : null,
+          sourceNames:
+              message.role == "assistant" &&
+                  latestAssistantSources.isNotEmpty &&
+                  index == latestAssistantIndex
+              ? latestAssistantSources
+              : const [],
           onEdit:
               message.role == "user" &&
                   message.id != null &&

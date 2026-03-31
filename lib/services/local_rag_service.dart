@@ -6,10 +6,12 @@ class RagRetrievalResult {
   const RagRetrievalResult({
     required this.context,
     required this.matchedChunks,
+    required this.sourceNames,
   });
 
   final String context;
   final List<RagChunk> matchedChunks;
+  final List<String> sourceNames;
 }
 
 class LocalRagService {
@@ -50,12 +52,20 @@ class LocalRagService {
   }) {
     final cleanedQuery = query.trim();
     if (cleanedQuery.isEmpty || documents.isEmpty) {
-      return const RagRetrievalResult(context: '', matchedChunks: []);
+      return const RagRetrievalResult(
+        context: '',
+        matchedChunks: [],
+        sourceNames: [],
+      );
     }
 
     final queryTokens = _tokenize(cleanedQuery);
     if (queryTokens.isEmpty) {
-      return const RagRetrievalResult(context: '', matchedChunks: []);
+      return const RagRetrievalResult(
+        context: '',
+        matchedChunks: [],
+        sourceNames: [],
+      );
     }
 
     final scored = <_ScoredChunk>[];
@@ -71,7 +81,11 @@ class LocalRagService {
     }
 
     if (scored.isEmpty) {
-      return const RagRetrievalResult(context: '', matchedChunks: []);
+      return const RagRetrievalResult(
+        context: '',
+        matchedChunks: [],
+        sourceNames: [],
+      );
     }
 
     scored.sort((a, b) => b.score.compareTo(a.score));
@@ -87,6 +101,10 @@ class LocalRagService {
     return RagRetrievalResult(
       context: buffer.toString().trim(),
       matchedChunks: selected.map((e) => e.chunk).toList(growable: false),
+      sourceNames: selected
+          .map((e) => e.docName)
+          .toSet()
+          .toList(growable: false),
     );
   }
 

@@ -8,6 +8,9 @@ class AppRuntimeConfig {
     required this.adTriggerStep,
     required this.rewardedTokenBonus,
     required this.defaultProviderId,
+    required this.onboardingEnabled,
+    required this.paywallEnabled,
+    required this.adsEnabled,
   });
 
   const AppRuntimeConfig.defaults()
@@ -15,13 +18,19 @@ class AppRuntimeConfig {
       premiumDailyTokenLimit = 100000,
       adTriggerStep = 5000,
       rewardedTokenBonus = 2500,
-      defaultProviderId = 'proxy';
+      defaultProviderId = 'proxy',
+      onboardingEnabled = true,
+      paywallEnabled = true,
+      adsEnabled = true;
 
   final int baseDailyTokenLimit;
   final int premiumDailyTokenLimit;
   final int adTriggerStep;
   final int rewardedTokenBonus;
   final String defaultProviderId;
+  final bool onboardingEnabled;
+  final bool paywallEnabled;
+  final bool adsEnabled;
 }
 
 class AppRuntimeConfigService {
@@ -46,6 +55,9 @@ class AppRuntimeConfigService {
         'rewarded_ad_trigger_step': 5000,
         'rewarded_token_bonus': 2500,
         'default_provider_id': 'proxy',
+        'onboarding_enabled': true,
+        'paywall_enabled': true,
+        'ads_enabled': true,
       });
       await remoteConfig.fetchAndActivate();
 
@@ -57,6 +69,9 @@ class AppRuntimeConfigService {
         adTriggerStep: remoteConfig.getInt('rewarded_ad_trigger_step'),
         rewardedTokenBonus: remoteConfig.getInt('rewarded_token_bonus'),
         defaultProviderId: remoteConfig.getString('default_provider_id').trim(),
+        onboardingEnabled: remoteConfig.getBool('onboarding_enabled'),
+        paywallEnabled: remoteConfig.getBool('paywall_enabled'),
+        adsEnabled: remoteConfig.getBool('ads_enabled'),
       );
     } catch (_) {
       return const AppRuntimeConfig.defaults();

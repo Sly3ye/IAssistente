@@ -33,7 +33,7 @@ Wrapper LLM multi-provider in Flutter con chat persistenti, auth Firebase, strea
 1. Crea il file `.env` da `.env.example`.
 2. Configura Firebase (`lib/firebase_options.dart` già incluso).
 3. Per deploy reale: compila anche gli ID AdMob e IAP nel `.env`.
-3. Avvia:
+4. Avvia:
 
 ```bash
 flutter pub get
@@ -71,6 +71,8 @@ Il proxy ora supporta:
 ## Test
 
 ```bash
+./scripts/check_runtime_config.sh
 flutter analyze
 flutter test
+./scripts/smoke_local.sh
 ```

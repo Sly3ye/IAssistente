@@ -21,6 +21,9 @@ class AppConfigDiagnostics {
     final appEnv = (environment['APP_ENV'] ?? 'development').trim().toLowerCase();
     final proxyUrl = (environment['LLM_PROXY_URL'] ?? '').trim();
     final proxyAuthToken = (environment['LLM_PROXY_AUTH_TOKEN'] ?? '').trim();
+    final allowDirect = (environment['ALLOW_CLIENT_SIDE_LLM_IN_PRODUCTION'] ?? '')
+        .trim()
+        .toLowerCase();
     final directKeys = [
       'OPENAI_API_KEY',
       'ANTHROPIC_API_KEY',
@@ -59,9 +62,11 @@ class AppConfigDiagnostics {
       }
     }
 
-    if (appEnv == 'production' && directKeys.isNotEmpty) {
+    if (appEnv == 'production' &&
+        directKeys.isNotEmpty &&
+        allowDirect != 'true') {
       warnings.add(
-        'Direct provider API keys are present while APP_ENV=production. The .env file is bundled into the client app.',
+        'Direct provider API keys are present while APP_ENV=production. They will be blocked unless ALLOW_CLIENT_SIDE_LLM_IN_PRODUCTION=true.',
       );
     }
 

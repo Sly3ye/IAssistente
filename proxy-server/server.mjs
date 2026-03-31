@@ -512,6 +512,17 @@ function logStartupStatus() {
   console.log(
     `[proxy] auth token: ${PROXY_AUTH_TOKEN ? 'configured' : 'not configured'}`,
   );
+  if (availableProviders.length === 0) {
+    console.warn('[proxy] warning: no upstream provider API key is configured.');
+  }
+  if (!PROXY_AUTH_TOKEN) {
+    console.warn(
+      '[proxy] warning: PROXY_AUTH_TOKEN is empty, so the endpoint is public.',
+    );
+  }
+  if (PROXY_ALLOWED_ORIGIN === '*') {
+    console.warn('[proxy] warning: PROXY_ALLOWED_ORIGIN is set to "*".');
+  }
 }
 
 const server = http.createServer(async (req, res) => {

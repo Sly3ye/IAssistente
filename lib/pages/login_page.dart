@@ -55,8 +55,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       if (isRegister) {
         await auth.registerWithEmail(email: email, password: password);
         await auth.sendCurrentEmailVerification();
+        await ref.read(observabilityServiceProvider).logEvent(
+          'auth_register_email',
+        );
       } else {
         await auth.signInWithEmail(email: email, password: password);
+        await ref.read(observabilityServiceProvider).logEvent('auth_login_email');
       }
     });
   }
@@ -76,6 +80,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       await ref
           .read(authServiceProvider)
           .sendPasswordResetEmail(email: email);
+      await ref
+          .read(observabilityServiceProvider)
+          .logEvent('auth_password_reset_requested');
     });
 
     if (!mounted || errorText != null) return;
@@ -88,6 +95,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final auth = ref.read(authServiceProvider);
     await _withLoading(() async {
       await auth.signInWithGoogle();
+      await ref.read(observabilityServiceProvider).logEvent(
+        'auth_login_google',
+      );
     });
   }
 
@@ -95,6 +105,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final auth = ref.read(authServiceProvider);
     await _withLoading(() async {
       await auth.signInWithApple();
+      await ref
+          .read(observabilityServiceProvider)
+          .logEvent('auth_login_apple');
     });
   }
 

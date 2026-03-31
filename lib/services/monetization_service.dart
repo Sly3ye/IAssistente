@@ -44,13 +44,25 @@ class MonetizationService extends ChangeNotifier {
   BannerAd? get bannerAd => _bannerReady ? _bannerAd : null;
   bool get rewardedReady => _rewardedReady;
   String? get lastError => _lastError;
+  bool get hasConfiguredProducts => _productIds().isNotEmpty;
+  bool get hasConfiguredAdUnits =>
+      _isNonEmpty(dotenv.env['ADMOB_BANNER_ANDROID']) ||
+      _isNonEmpty(dotenv.env['ADMOB_BANNER_IOS']) ||
+      _isNonEmpty(dotenv.env['ADMOB_REWARDED_ANDROID']) ||
+      _isNonEmpty(dotenv.env['ADMOB_REWARDED_IOS']);
   bool get supportsAds =>
       !kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.android ||
           defaultTargetPlatform == TargetPlatform.iOS);
 
-  Future<void> initialize({required bool premiumEnabled}) async {
+  bool _adsConsentEnabled = false;
+
+  Future<void> initialize({
+    required bool premiumEnabled,
+    required bool adsEnabled,
+  }) async {
     _premiumEntitlement = premiumEnabled;
+    _adsConsentEnabled = adsEnabled;
     if (_initialized) {
       notifyListeners();
       return;
@@ -59,14 +71,14 @@ class MonetizationService extends ChangeNotifier {
     _initialized = true;
     _lastError = null;
 
-    if (supportsAds) {
+    if (supportsAds && _adsConsentEnabled && hasConfiguredAdUnits) {
       await MobileAds.instance.initialize();
       _loadBannerAd();
       _loadRewardedAd();
     }
 
     _storeAvailable = await _inAppPurchase.isAvailable();
-    if (_storeAvailable) {
+    if (_storeAvailable && hasConfiguredProducts) {
       await _refreshProducts();
     }
 
@@ -83,11 +95,37 @@ class MonetizationService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> updateAdsConsent(bool enabled) async {
+    _adsConsentEnabled = enabled;
+    if (!_initialized || !supportsAds) {
+      notifyListeners();
+      return;
+    }
+
+    if (!_adsConsentEnabled || !hasConfiguredAdUnits) {
+      _disposeBannerAd();
+      _rewardedAd?.dispose();
+      _rewardedAd = null;
+      _rewardedReady = false;
+      notifyListeners();
+      return;
+    }
+
+    await MobileAds.instance.initialize();
+    if (!_premiumEntitlement && _bannerAd == null) {
+      _loadBannerAd();
+    }
+    if (_rewardedAd == null) {
+      _loadRewardedAd();
+    }
+    notifyListeners();
+  }
+
   Future<void> refresh() async {
-    if (_storeAvailable) {
+    if (_storeAvailable && hasConfiguredProducts) {
       await _refreshProducts();
     }
-    if (supportsAds) {
+    if (supportsAds && _adsConsentEnabled && hasConfiguredAdUnits) {
       if (_bannerAd == null && !_premiumEntitlement) {
         _loadBannerAd();
       }
@@ -98,7 +136,7 @@ class MonetizationService extends ChangeNotifier {
   }
 
   Future<bool> purchaseProduct(ProductDetails product) async {
-    if (!_storeAvailable || _isBusy) return false;
+    if (!_storeAvailable || !hasConfiguredProducts || _isBusy) return false;
 
     _isBusy = true;
     _lastError = null;
@@ -130,7 +168,7 @@ class MonetizationService extends ChangeNotifier {
   }
 
   Future<bool> restorePurchases() async {
-    if (!_storeAvailable || _isBusy) return false;
+    if (!_storeAvailable || !hasConfiguredProducts || _isBusy) return false;
 
     _isBusy = true;
     _lastError = null;
@@ -153,6 +191,9 @@ class MonetizationService extends ChangeNotifier {
   }
 
   Future<bool> showRewardedAd({required VoidCallback onReward}) async {
+    if (!_adsConsentEnabled || !hasConfiguredAdUnits) {
+      return false;
+    }
     final ad = _rewardedAd;
     if (ad == null || !_rewardedReady) {
       _loadRewardedAd();
@@ -263,7 +304,8 @@ class MonetizationService extends ChangeNotifier {
   }
 
   void _loadBannerAd() {
-    if (!supportsAds || _premiumEntitlement) return;
+    if (!supportsAds || !_adsConsentEnabled || !hasConfiguredAdUnits) return;
+    if (_premiumEntitlement) return;
     if (_bannerAd != null) return;
 
     final ad = BannerAd(
@@ -291,7 +333,8 @@ class MonetizationService extends ChangeNotifier {
   }
 
   void _loadRewardedAd() {
-    if (!supportsAds || _rewardedAd != null) return;
+    if (!supportsAds || !_adsConsentEnabled || !hasConfiguredAdUnits) return;
+    if (_rewardedAd != null) return;
 
     RewardedAd.load(
       adUnitId: _rewardedAdUnitId(),
@@ -346,4 +389,6 @@ class MonetizationService extends ChangeNotifier {
     _rewardedAd?.dispose();
     super.dispose();
   }
+
+  bool _isNonEmpty(String? value) => (value ?? '').trim().isNotEmpty;
 }

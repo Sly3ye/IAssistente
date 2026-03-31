@@ -37,10 +37,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     _speech = stt.SpeechToText();
     _tts = FlutterTts();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      final runtimeConfig = ref.read(appRuntimeConfigProvider);
       ref
           .read(monetizationServiceProvider)
           .initialize(
             premiumEnabled: ref.read(chatControllerProvider).isPremium,
+            adsEnabled:
+                runtimeConfig.adsEnabled &&
+                ref.read(chatControllerProvider).adsConsent,
           );
     });
   }
@@ -563,6 +567,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                             analyticsConsent,
                           );
                           await controller.setAdsConsent(adsConsent);
+                          await ref
+                              .read(monetizationServiceProvider)
+                              .updateAdsConsent(
+                                ref.read(appRuntimeConfigProvider).adsEnabled &&
+                                    adsConsent,
+                              );
                           if (context.mounted) {
                             Navigator.pop(context);
                           }
@@ -729,12 +739,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                       ),
                     ),
                   Expanded(
-                    child: ChatList(
-                      messages: state.messages,
-                      controller: scrollController,
-                      isSending: state.isSending,
-                      streamingText: state.streamingText,
-                    ),
+              child: ChatList(
+                messages: state.messages,
+                controller: scrollController,
+                isSending: state.isSending,
+                streamingText: state.streamingText,
+                latestAssistantSources: state.latestRagSourceNames,
+              ),
                   ),
                   const MonetizationBanner(),
                   ChatInputBar(
@@ -837,7 +848,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   Future<void> _promptRewardedAd(ChatState state) async {
-    if (!mounted || !state.adsConsent || state.isPremium) {
+    final runtimeConfig = ref.read(appRuntimeConfigProvider);
+    if (!mounted ||
+        !runtimeConfig.adsEnabled ||
+        !state.adsConsent ||
+        state.isPremium) {
       await ref.read(chatControllerProvider.notifier).dismissRewardedAdOffer();
       return;
     }
@@ -868,6 +883,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
 
     final monetization = ref.read(monetizationServiceProvider);
+    await ref.read(observabilityServiceProvider).logEvent('rewarded_ad_open');
     final shown = await monetization.showRewardedAd(
       onReward: () {
         ref.read(chatControllerProvider.notifier).grantRewardedTokens();
@@ -877,12 +893,18 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     if (!mounted) return;
     if (!shown) {
       await ref.read(chatControllerProvider.notifier).dismissRewardedAdOffer();
+      await ref
+          .read(observabilityServiceProvider)
+          .logEvent('rewarded_ad_unavailable');
       messenger.showSnackBar(
         SnackBar(content: Text(strings.rewardedAdUnavailable)),
       );
       return;
     }
 
+    await ref
+        .read(observabilityServiceProvider)
+        .logEvent('rewarded_ad_reward_granted');
     messenger.showSnackBar(
       SnackBar(
         content: Text(strings.rewardedTokensGranted(state.rewardedTokenBonus)),

@@ -25,6 +25,7 @@
 ```bash
 cp .env.example .env
 flutter pub get
+./scripts/check_runtime_config.sh
 flutter analyze
 flutter test
 ```
@@ -38,6 +39,16 @@ source .env
 node server.mjs
 ```
 
+## Standard Build Commands
+
+```bash
+flutter build apk --release
+flutter build appbundle --release
+flutter build ios --release
+```
+
+Android release signing reads `keystore.properties`.
+
 ## Release Smoke Test
 
 1. Email login works
@@ -48,3 +59,14 @@ node server.mjs
 6. Banner and rewarded ads load with real IDs
 7. Purchase and restore flows work on sandbox stores
 8. Cloud backup push/pull works with Firestore rules enabled
+
+## Rollback
+
+1. Disable risky rollout paths with Remote Config (`paywall_enabled`, `ads_enabled`, provider default).
+2. Rotate or revoke the proxy auth token if the backend is exposed.
+3. Revert the last application commit and redeploy:
+
+```bash
+git revert <commit>
+git push origin main
+```

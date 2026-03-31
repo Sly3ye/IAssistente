@@ -10,6 +10,8 @@ class ChatBubble extends StatelessWidget {
   final String editTooltip;
   final String copyTooltip;
   final String copiedMessage;
+  final String? sourcesTitle;
+  final List<String> sourceNames;
 
   const ChatBubble({
     super.key,
@@ -20,6 +22,8 @@ class ChatBubble extends StatelessWidget {
     required this.editTooltip,
     required this.copyTooltip,
     required this.copiedMessage,
+    this.sourcesTitle,
+    this.sourceNames = const [],
   });
 
   @override
@@ -169,6 +173,27 @@ class ChatBubble extends StatelessWidget {
                         Icons.copy_outlined,
                         color: Colors.grey.shade600,
                       ),
+                    ),
+                  ],
+                ),
+              ),
+            if (!isUser && sourceNames.isNotEmpty && sourcesTitle != null)
+              Padding(
+                padding: const EdgeInsets.only(left: 36, top: 6),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      sourcesTitle!,
+                      style: Theme.of(context).textTheme.labelMedium,
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: sourceNames
+                          .map((name) => Chip(label: Text(name)))
+                          .toList(growable: false),
                     ),
                   ],
                 ),

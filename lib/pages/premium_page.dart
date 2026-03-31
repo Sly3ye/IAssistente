@@ -11,7 +11,15 @@ class PremiumPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final chatState = ref.watch(chatControllerProvider);
     final monetization = ref.watch(monetizationServiceProvider);
+    final runtimeConfig = ref.watch(appRuntimeConfigProvider);
     final strings = AppStrings.ofCode(chatState.preferredLanguageCode);
+
+    if (!runtimeConfig.paywallEnabled) {
+      return Scaffold(
+        appBar: AppBar(title: Text(strings.premium)),
+        body: Center(child: Text(strings.premiumTemporarilyUnavailable)),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(title: Text(strings.premium)),
@@ -39,8 +47,20 @@ class PremiumPage extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 16),
-          if (!monetization.storeAvailable || monetization.products.isEmpty)
-            ListTile(title: Text(strings.noProductsConfigured)),
+          if (!monetization.hasConfiguredProducts)
+            ListTile(title: Text(strings.noProductsConfigured))
+          else if (!monetization.storeAvailable)
+            ListTile(title: Text(strings.storeUnavailable))
+          else if (monetization.products.isEmpty)
+            ListTile(title: Text(strings.purchaseUnavailable)),
+          if ((monetization.lastError ?? '').trim().isNotEmpty)
+            Card(
+              color: Colors.red.shade50,
+              child: ListTile(
+                leading: Icon(Icons.error_outline, color: Colors.red.shade700),
+                title: Text(monetization.lastError!),
+              ),
+            ),
           for (final product in monetization.products)
             Card(
               child: ListTile(
@@ -59,6 +79,19 @@ class PremiumPage extends ConsumerWidget {
                                 .read(chatControllerProvider.notifier)
                                 .setPremiumStatus(true);
                             monetization.updatePremiumEntitlement(true);
+                            await ref
+                                .read(observabilityServiceProvider)
+                                .logEvent(
+                                  'purchase_completed',
+                                  parameters: {'product_id': product.id},
+                                );
+                          } else {
+                            await ref
+                                .read(observabilityServiceProvider)
+                                .logEvent(
+                                  'purchase_failed',
+                                  parameters: {'product_id': product.id},
+                                );
                           }
                           if (!context.mounted) return;
                           messenger.showSnackBar(
@@ -87,6 +120,9 @@ class PremiumPage extends ConsumerWidget {
                           .read(chatControllerProvider.notifier)
                           .setPremiumStatus(true);
                       monetization.updatePremiumEntitlement(true);
+                      await ref
+                          .read(observabilityServiceProvider)
+                          .logEvent('purchase_restored');
                     }
                     if (!context.mounted) return;
                     messenger.showSnackBar(

@@ -25,6 +25,7 @@ class _ChatDrawerState extends ConsumerState<ChatDrawer> {
   Widget build(BuildContext context) {
     final state = ref.watch(chatControllerProvider);
     final registry = ref.watch(llmRegistryProvider);
+    final runtimeConfig = ref.watch(appRuntimeConfigProvider);
     final strings = AppStrings.ofCode(state.preferredLanguageCode);
 
     return Drawer(
@@ -285,16 +286,22 @@ class _ChatDrawerState extends ConsumerState<ChatDrawer> {
                 ).push(MaterialPageRoute(builder: (_) => const AccountPage()));
               },
             ),
-            ListTile(
-              leading: const Icon(Icons.workspace_premium_outlined),
-              title: Text(strings.premium),
-              onTap: () async {
-                Navigator.pop(context);
-                await Navigator.of(
-                  context,
-                ).push(MaterialPageRoute(builder: (_) => const PremiumPage()));
-              },
-            ),
+            if (runtimeConfig.paywallEnabled)
+              ListTile(
+                leading: const Icon(Icons.workspace_premium_outlined),
+                title: Text(strings.premium),
+                onTap: () async {
+                  final navigator = Navigator.of(context);
+                  await ref
+                      .read(observabilityServiceProvider)
+                      .logEvent('paywall_opened');
+                  if (!context.mounted) return;
+                  navigator.pop();
+                  await navigator.push(
+                    MaterialPageRoute(builder: (_) => const PremiumPage()),
+                  );
+                },
+              ),
             const Divider(),
             ListTile(
               leading: const Icon(Icons.logout),

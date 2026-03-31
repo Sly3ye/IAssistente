@@ -3,6 +3,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import '../models/message.dart';
 import 'llm_provider.dart';
+import 'provider_runtime_guard.dart';
 
 class AnthropicProvider implements LLMProvider {
   static const String _baseUrl = "https://api.anthropic.com/v1/messages";
@@ -58,6 +59,9 @@ class AnthropicProvider implements LLMProvider {
     if (apiKey == null || apiKey.isEmpty) {
       return "Nessuna API key trovata. Aggiungila nel file .env.";
     }
+    if (isClientSideProviderBlockedInProduction()) {
+      return blockedClientProviderMessage(label);
+    }
 
     try {
       final response = await http.post(
@@ -104,6 +108,10 @@ class AnthropicProvider implements LLMProvider {
     final apiKey = dotenv.env['ANTHROPIC_API_KEY'];
     if (apiKey == null || apiKey.isEmpty) {
       yield "Nessuna API key trovata. Aggiungila nel file .env.";
+      return;
+    }
+    if (isClientSideProviderBlockedInProduction()) {
+      yield blockedClientProviderMessage(label);
       return;
     }
 
@@ -168,6 +176,7 @@ class AnthropicProvider implements LLMProvider {
   }) async {
     final apiKey = dotenv.env['ANTHROPIC_API_KEY'];
     if (apiKey == null || apiKey.isEmpty) return null;
+    if (isClientSideProviderBlockedInProduction()) return null;
 
     try {
       final response = await http.post(

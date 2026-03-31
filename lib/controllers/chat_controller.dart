@@ -51,6 +51,7 @@ class ChatState {
   final int dailyTokenLimit;
   final int nextAdTriggerTokens;
   final int rewardedTokenBonus;
+  final List<String> latestRagSourceNames;
   final bool shouldOfferRewardedAd;
   final double estimatedCostUsd;
   final List<PromptPreset> promptPresets;
@@ -94,6 +95,7 @@ class ChatState {
     required this.dailyTokenLimit,
     required this.nextAdTriggerTokens,
     required this.rewardedTokenBonus,
+    required this.latestRagSourceNames,
     required this.shouldOfferRewardedAd,
     required this.estimatedCostUsd,
     required this.promptPresets,
@@ -138,6 +140,7 @@ class ChatState {
     int? dailyTokenLimit,
     int? nextAdTriggerTokens,
     int? rewardedTokenBonus,
+    List<String>? latestRagSourceNames,
     bool? shouldOfferRewardedAd,
     double? estimatedCostUsd,
     List<PromptPreset>? promptPresets,
@@ -186,6 +189,8 @@ class ChatState {
       dailyTokenLimit: dailyTokenLimit ?? this.dailyTokenLimit,
       nextAdTriggerTokens: nextAdTriggerTokens ?? this.nextAdTriggerTokens,
       rewardedTokenBonus: rewardedTokenBonus ?? this.rewardedTokenBonus,
+      latestRagSourceNames:
+          latestRagSourceNames ?? this.latestRagSourceNames,
       shouldOfferRewardedAd:
           shouldOfferRewardedAd ?? this.shouldOfferRewardedAd,
       estimatedCostUsd: estimatedCostUsd ?? this.estimatedCostUsd,
@@ -240,6 +245,7 @@ class ChatState {
       dailyTokenLimit: dailyTokenLimit,
       nextAdTriggerTokens: nextAdTriggerTokens,
       rewardedTokenBonus: rewardedTokenBonus,
+      latestRagSourceNames: const [],
       shouldOfferRewardedAd: false,
       estimatedCostUsd: 0,
       promptPresets: const [],
@@ -473,6 +479,7 @@ class ChatController extends StateNotifier<ChatState> {
       dailyTokenLimit: dailyTokenLimit,
       nextAdTriggerTokens: nextAdTriggerTokens,
       rewardedTokenBonus: _runtimeConfig.rewardedTokenBonus,
+      latestRagSourceNames: const [],
       shouldOfferRewardedAd: false,
       estimatedCostUsd: estimateUsdFromTokens(usageTokens),
       promptPresets: promptPresets,
@@ -482,7 +489,7 @@ class ChatController extends StateNotifier<ChatState> {
       failedRequests: metricsFailed,
       averageLatencyMs: averageLatency,
       openCircuitProviders: _currentOpenCircuits(),
-      shouldShowOnboarding: !onboardingSeen,
+      shouldShowOnboarding: _runtimeConfig.onboardingEnabled && !onboardingSeen,
       onboardingVariant: onboardingVariant,
       clearError: true,
     );
@@ -570,7 +577,15 @@ class ChatController extends StateNotifier<ChatState> {
       currentChat: chat,
       messages: const <Message>[],
       streamingText: '',
+      latestRagSourceNames: const [],
       clearError: true,
+    );
+    await _observability.logEvent(
+      'chat_created',
+      parameters: {
+        'provider_id': chat.providerId,
+        'model_id': chat.modelId,
+      },
     );
   }
 
@@ -590,6 +605,7 @@ class ChatController extends StateNotifier<ChatState> {
       selectedMaxTokens: current.maxTokens,
       selectedTopP: current.topP,
       streamingText: '',
+      latestRagSourceNames: const [],
       clearError: true,
     );
   }
@@ -618,6 +634,7 @@ class ChatController extends StateNotifier<ChatState> {
       chats: chats,
       currentChat: current,
       messages: messages,
+      latestRagSourceNames: const [],
       selectedProviderId: current?.providerId ?? state.selectedProviderId,
       selectedModelId: current?.modelId ?? state.selectedModelId,
       selectedSystemPrompt: current?.systemPrompt ?? state.selectedSystemPrompt,
@@ -872,8 +889,10 @@ class ChatController extends StateNotifier<ChatState> {
     );
   }
 
-  Future<String> exportChatsBackup() {
-    return _repo.exportChatsToJsonFile();
+  Future<String> exportChatsBackup() async {
+    final path = await _repo.exportChatsToJsonFile();
+    await _observability.logEvent('local_backup_exported');
+    return path;
   }
 
   Future<String?> importChatsBackupFromLatest() async {
@@ -881,13 +900,16 @@ class ChatController extends StateNotifier<ChatState> {
     if (path == null) return null;
     await _repo.importChatsFromJsonFile(path: path, replaceLocalData: true);
     await _init();
+    await _observability.logEvent('local_backup_imported');
     return path;
   }
 
   Future<String?> exportCurrentChatMarkdown() async {
     final chatId = state.currentChat?.id;
     if (chatId == null) return null;
-    return _repo.exportChatToMarkdown(chatId);
+    final path = await _repo.exportChatToMarkdown(chatId);
+    await _observability.logEvent('chat_markdown_exported');
+    return path;
   }
 
   Future<void> clearLocalChatsAndMessages() async {
@@ -895,8 +917,8 @@ class ChatController extends StateNotifier<ChatState> {
     await _init();
   }
 
-  Future<String> exportUserDataBundle() {
-    return _repo.exportUserDataToJsonFile(
+  Future<String> exportUserDataBundle() async {
+    final path = await _repo.exportUserDataToJsonFile(
       accountPayload: {
         'name': state.profileName,
         'email': state.profileEmail,
@@ -907,6 +929,8 @@ class ChatController extends StateNotifier<ChatState> {
         'exportedAt': DateTime.now().toIso8601String(),
       },
     );
+    await _observability.logEvent('user_data_exported');
+    return path;
   }
 
   Future<void> pushCloudBackup() async {
@@ -924,6 +948,7 @@ class ChatController extends StateNotifier<ChatState> {
       'isPremium': state.isPremium,
     };
     await _cloudSync.pushPayload(payload);
+    await _observability.logEvent('cloud_backup_uploaded');
   }
 
   Future<bool> pullCloudBackup() async {
@@ -943,6 +968,7 @@ class ChatController extends StateNotifier<ChatState> {
       replaceAppState: true,
     );
     await _init();
+    await _observability.logEvent('cloud_backup_restored');
     return true;
   }
 
@@ -971,6 +997,7 @@ class ChatController extends StateNotifier<ChatState> {
     final cleaned = text.trim();
     if (cleaned.isEmpty || state.isSending) return;
     _cancelRequested = false;
+    final isFirstChatMessage = state.messages.isEmpty;
 
     await _refreshDailyUsage();
     final estimatedUserTokens = estimateTokensFromText(cleaned);
@@ -1002,6 +1029,7 @@ class ChatController extends StateNotifier<ChatState> {
     state = state.copyWith(
       isSending: true,
       streamingText: '',
+      latestRagSourceNames: const [],
       clearError: true,
     );
 
@@ -1016,6 +1044,25 @@ class ChatController extends StateNotifier<ChatState> {
     );
     final messages = [...state.messages, userMessage];
     state = state.copyWith(messages: messages);
+
+    await _observability.logEvent(
+      'message_sent',
+      parameters: {
+        'provider_id': chat.providerId,
+        'model_id': chat.modelId,
+        'message_length': cleaned.length,
+        'rag_enabled': state.ragEnabled,
+      },
+    );
+    if (isFirstChatMessage) {
+      await _observability.logEvent(
+        'first_chat_message',
+        parameters: {
+          'provider_id': chat.providerId,
+          'model_id': chat.modelId,
+        },
+      );
+    }
 
     await _extractAndPersistMemory(cleaned);
 
@@ -1035,6 +1082,7 @@ class ChatController extends StateNotifier<ChatState> {
         messages: updatedMessages,
         isSending: false,
         streamingText: '',
+        latestRagSourceNames: const [],
       );
       return;
     }
@@ -1114,6 +1162,7 @@ class ChatController extends StateNotifier<ChatState> {
     state = state.copyWith(
       isSending: true,
       streamingText: '',
+      latestRagSourceNames: const [],
       clearError: true,
     );
     await _generateAssistant(
@@ -1143,6 +1192,7 @@ class ChatController extends StateNotifier<ChatState> {
     state = state.copyWith(
       isSending: true,
       streamingText: '',
+      latestRagSourceNames: const [],
       clearError: true,
     );
 
@@ -1192,11 +1242,16 @@ class ChatController extends StateNotifier<ChatState> {
         messages: updatedMessages,
         isSending: false,
         streamingText: '',
+        latestRagSourceNames: const [],
       );
       return;
     }
 
-    state = state.copyWith(isSending: false, streamingText: '');
+    state = state.copyWith(
+      isSending: false,
+      streamingText: '',
+      latestRagSourceNames: const [],
+    );
   }
 
   Future<_AssistantResult> _generateAssistant({
@@ -1204,10 +1259,11 @@ class ChatController extends StateNotifier<ChatState> {
     required LLMProvider preferredProvider,
     required List<Message> messages,
   }) async {
-    final config = _buildRuntimeConfig(
+    final resolvedConfig = _buildRuntimeConfig(
       chat,
       latestUserMessage: _latestUserMessage(messages),
     );
+    final config = resolvedConfig.config;
     final attempts = _buildAttempts(chat, preferredProvider);
 
     String reply = '';
@@ -1290,10 +1346,22 @@ class ChatController extends StateNotifier<ChatState> {
       messages: updatedMessages,
       isSending: false,
       streamingText: '',
+      latestRagSourceNames:
+          isError ? const [] : resolvedConfig.ragSourceNames,
       errorMessage: isError ? savedReply : null,
       selectedProviderId: current.providerId,
       selectedModelId: current.modelId,
       openCircuitProviders: _currentOpenCircuits(),
+    );
+
+    await _observability.logEvent(
+      isError ? 'assistant_reply_failed' : 'assistant_reply_completed',
+      parameters: {
+        'provider_id': usedProviderId ?? chat.providerId,
+        'model_id': usedModelId ?? chat.modelId,
+        'used_fallback': usedFallback,
+        'rag_sources': resolvedConfig.ragSourceNames.length,
+      },
     );
 
     return _AssistantResult(
@@ -1538,6 +1606,7 @@ class ChatController extends StateNotifier<ChatState> {
     final currentUsage = await _loadDailyUsage();
     final updatedUsage = currentUsage + tokens;
     final shouldOfferRewardedAd =
+        _runtimeConfig.adsEnabled &&
         state.adsConsent &&
         !state.isPremium &&
         updatedUsage >= state.nextAdTriggerTokens;
@@ -1600,8 +1669,12 @@ class ChatController extends StateNotifier<ChatState> {
     return null;
   }
 
-  LLMRequestConfig _buildRuntimeConfig(Chat chat, {String? latestUserMessage}) {
+  _ResolvedRuntimeConfig _buildRuntimeConfig(
+    Chat chat, {
+    String? latestUserMessage,
+  }) {
     var prompt = chat.systemPrompt;
+    var ragSourceNames = const <String>[];
 
     if (state.longTermMemoryEnabled && state.memoryNotes.isNotEmpty) {
       final memory = state.memoryNotes.map((note) => '- $note').join('\n');
@@ -1618,6 +1691,7 @@ class ChatController extends StateNotifier<ChatState> {
         documents: state.ragDocuments,
       );
       if (retrieval.context.isNotEmpty) {
+        ragSourceNames = retrieval.sourceNames;
         prompt =
             '$prompt\n\n${_strings.pick(it: 'Contesto da documenti locali (usa solo se rilevante):', en: 'Context from local documents (use only if relevant):')}\n${retrieval.context}';
       }
@@ -1626,11 +1700,14 @@ class ChatController extends StateNotifier<ChatState> {
     prompt =
         '$prompt\n\n${_strings.pick(it: 'Rispondi sempre in ${_strings.languageLabel(state.preferredLanguageCode)}.', en: 'Always reply in ${_strings.modelLanguageName(state.preferredLanguageCode)}.')}';
 
-    return LLMRequestConfig(
-      systemPrompt: prompt,
-      temperature: chat.temperature,
-      maxTokens: chat.maxTokens,
-      topP: chat.topP,
+    return _ResolvedRuntimeConfig(
+      config: LLMRequestConfig(
+        systemPrompt: prompt,
+        temperature: chat.temperature,
+        maxTokens: chat.maxTokens,
+        topP: chat.topP,
+      ),
+      ragSourceNames: ragSourceNames,
     );
   }
 
@@ -1869,6 +1946,16 @@ class ChatController extends StateNotifier<ChatState> {
       nextTotalLatency.toString(),
     );
   }
+}
+
+class _ResolvedRuntimeConfig {
+  const _ResolvedRuntimeConfig({
+    required this.config,
+    required this.ragSourceNames,
+  });
+
+  final LLMRequestConfig config;
+  final List<String> ragSourceNames;
 }
 
 class _ProviderAttempt {

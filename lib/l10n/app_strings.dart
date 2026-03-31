@@ -119,6 +119,10 @@ class AppStrings {
   String get adsConsent => pick(it: 'Consenso ads', en: 'Ads consent');
   String get localRag =>
       pick(it: 'RAG locale sugli allegati', en: 'Local RAG on attachments');
+  String ragSourcesTitle(int count) => pick(
+    it: 'Fonti locali usate: $count',
+    en: 'Local sources used: $count',
+  );
   String ragDocumentsLabel(int count) => pick(
     it: 'Documenti indicizzati: $count',
     en: 'Indexed documents: $count',
@@ -310,6 +314,12 @@ class AppStrings {
   );
   String get privacySection => pick(it: 'Privacy', en: 'Privacy');
   String get dataSection => pick(it: 'Dati e backup', en: 'Data and backups');
+  String get dataPolicyTitle =>
+      pick(it: 'Policy tecnica dati', en: 'Technical data policy');
+  String get dataPolicyBody => pick(
+    it: 'Locale: chat, messaggi, impostazioni, preset prompt, memoria utente, indice RAG e metriche locali. Cloud backup: un payload JSON esportato manualmente con chat, messaggi, stato app e profilo base; nessun embedding cloud dedicato. Analytics e crash reporting restano spenti finche non dai consenso.',
+    en: 'Local: chats, messages, settings, prompt presets, user memory, RAG index, and local metrics. Cloud backup: a manually exported JSON payload with chats, messages, app state, and basic profile; no dedicated cloud embeddings. Analytics and crash reporting stay off until you grant consent.',
+  );
   String get premiumSection => pick(it: 'Premium', en: 'Premium');
   String get saveProfile => pick(it: 'Salva profilo', en: 'Save profile');
   String get profileSaved =>
@@ -355,6 +365,14 @@ class AppStrings {
   String get noProductsConfigured => pick(
     it: 'Nessun prodotto store configurato. Imposta gli ID in .env per abilitare gli acquisti reali.',
     en: 'No store product is configured. Set product IDs in .env to enable real purchases.',
+  );
+  String get storeUnavailable => pick(
+    it: 'Store non disponibile su questo device/build.',
+    en: 'Store is unavailable on this device/build.',
+  );
+  String get premiumTemporarilyUnavailable => pick(
+    it: 'Paywall disabilitato da configurazione runtime.',
+    en: 'Paywall disabled by runtime configuration.',
   );
   String get purchaseUnavailable =>
       pick(it: 'Acquisto non disponibile.', en: 'Purchase not available.');

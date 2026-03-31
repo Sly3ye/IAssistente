@@ -242,13 +242,38 @@ class _AccountPageState extends ConsumerState<AccountPage> {
             contentPadding: EdgeInsets.zero,
             title: Text(strings.adsConsent),
             value: state.adsConsent,
-            onChanged: (value) =>
-                ref.read(chatControllerProvider.notifier).setAdsConsent(value),
+            onChanged: (value) async {
+              await ref.read(chatControllerProvider.notifier).setAdsConsent(
+                value,
+              );
+              await ref
+                  .read(monetizationServiceProvider)
+                  .updateAdsConsent(
+                    ref.read(appRuntimeConfigProvider).adsEnabled && value,
+                  );
+            },
           ),
           const SizedBox(height: 24),
           Text(
             strings.dataSection,
             style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    strings.dataPolicyTitle,
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(strings.dataPolicyBody),
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: 12),
           ListTile(
