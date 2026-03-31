@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "926630747739",
+    "project_id": "chatbot-ce96f",
+    "storage_bucket": "chatbot-ce96f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:926630747739:android:5745a545d969bd3b8ce97e",
+        "android_client_info": {
+          "package_name": "com.example.iassistente"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDLwjMHxoikRaWY8QHaaFtas8O35y9vNVU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
