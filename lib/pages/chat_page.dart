@@ -847,8 +847,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final action = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(strings.rewardedAdTitle(2500)),
-        content: Text(strings.rewardedAdBody(2500)),
+        title: Text(strings.rewardedAdTitle(state.rewardedTokenBonus)),
+        content: Text(strings.rewardedAdBody(state.rewardedTokenBonus)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -884,7 +884,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
 
     messenger.showSnackBar(
-      SnackBar(content: Text(strings.rewardedTokensGranted(2500))),
+      SnackBar(
+        content: Text(strings.rewardedTokensGranted(state.rewardedTokenBonus)),
+      ),
     );
   }
 }

@@ -5,11 +5,14 @@ import '../controllers/chat_controller.dart';
 import '../db/app_database.dart';
 import '../repositories/chat_repository.dart';
 import '../services/attachment_extraction_service.dart';
+import '../services/app_config_diagnostics.dart';
+import '../services/app_runtime_config.dart';
 import '../services/auth_service.dart';
 import '../services/cloud_sync_service.dart';
 import '../services/llm_provider.dart';
 import '../services/local_rag_service.dart';
 import '../services/monetization_service.dart';
+import '../services/observability_service.dart';
 import '../services/anthropic_provider.dart';
 import '../services/gemini_provider.dart';
 import '../services/ollama_provider.dart';
@@ -34,6 +37,18 @@ final llmRegistryProvider = Provider<LLMRegistry>((ref) {
     GeminiProvider(),
     OllamaProvider(),
   ]);
+});
+
+final appConfigDiagnosticsProvider = Provider<AppConfigDiagnostics>((ref) {
+  return const AppConfigDiagnostics.empty();
+});
+
+final appRuntimeConfigProvider = Provider<AppRuntimeConfig>((ref) {
+  return const AppRuntimeConfig.defaults();
+});
+
+final observabilityServiceProvider = Provider<ObservabilityService>((ref) {
+  return ObservabilityService.noop();
 });
 
 final firebaseAuthProvider = Provider<FirebaseAuth>((ref) {
@@ -84,6 +99,8 @@ final chatControllerProvider = StateNotifierProvider<ChatController, ChatState>(
       ref.watch(authServiceProvider),
       ref.watch(cloudSyncServiceProvider),
       ref.watch(localRagServiceProvider),
+      ref.watch(appRuntimeConfigProvider),
+      ref.watch(observabilityServiceProvider),
     );
   },
 );

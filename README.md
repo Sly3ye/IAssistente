@@ -22,14 +22,17 @@ Wrapper LLM multi-provider in Flutter con chat persistenti, auth Firebase, strea
 - Allegati completi: txt/md/json/csv/yaml + estrazione PDF + OCR immagini
 - RAG locale persistito sugli allegati con gestione documenti
 - Login Firebase: email/password, Google, Apple
+- Reset password e invio email di verifica
 - Profilo base e privacy UX: nome, avatar URL, lingua, export dati, cloud backup, delete account
 - Monetizzazione base: banner/rewarded ads, premium via store products, quota premium
 - UI multilingua: italiano / inglese
+- Diagnostica runtime, Remote Config base, analytics/crash reporting gated da consenso
 
 ## Setup rapido
 
 1. Crea il file `.env` da `.env.example`.
 2. Configura Firebase (`lib/firebase_options.dart` già incluso).
+3. Per deploy reale: compila anche gli ID AdMob e IAP nel `.env`.
 3. Avvia:
 
 ```bash
@@ -43,7 +46,11 @@ Per non esporre API key nel client, usa il provider `Proxy`:
 
 ```bash
 cd proxy-server
-OPENAI_API_KEY=... node server.mjs
+cp .env.example .env
+set -a
+source .env
+set +a
+node server.mjs
 ```
 
 Poi in `.env` dell'app:
@@ -51,7 +58,15 @@ Poi in `.env` dell'app:
 ```env
 LLM_PROXY_URL=http://localhost:8787/v1/chat
 LLM_PROXY_PROVIDER=openai
+LLM_PROXY_AUTH_TOKEN=...
 ```
+
+Il proxy ora supporta:
+
+- auth tramite bearer token opzionale
+- streaming SSE
+- endpoint `GET /health`
+- endpoint `GET /v1/models`
 
 ## Test
 

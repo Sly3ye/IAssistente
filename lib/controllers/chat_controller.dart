@@ -9,10 +9,12 @@ import '../models/message.dart';
 import '../models/prompt_preset.dart';
 import '../models/rag_document.dart';
 import '../repositories/chat_repository.dart';
+import '../services/app_runtime_config.dart';
 import '../services/auth_service.dart';
 import '../services/cloud_sync_service.dart';
 import '../services/llm_provider.dart';
 import '../services/local_rag_service.dart';
+import '../services/observability_service.dart';
 import '../utils/content_safety.dart';
 import '../utils/local_tools.dart';
 import '../utils/token_estimator.dart';
@@ -48,6 +50,7 @@ class ChatState {
   final int dailyTokensUsed;
   final int dailyTokenLimit;
   final int nextAdTriggerTokens;
+  final int rewardedTokenBonus;
   final bool shouldOfferRewardedAd;
   final double estimatedCostUsd;
   final List<PromptPreset> promptPresets;
@@ -90,6 +93,7 @@ class ChatState {
     required this.dailyTokensUsed,
     required this.dailyTokenLimit,
     required this.nextAdTriggerTokens,
+    required this.rewardedTokenBonus,
     required this.shouldOfferRewardedAd,
     required this.estimatedCostUsd,
     required this.promptPresets,
@@ -133,6 +137,7 @@ class ChatState {
     int? dailyTokensUsed,
     int? dailyTokenLimit,
     int? nextAdTriggerTokens,
+    int? rewardedTokenBonus,
     bool? shouldOfferRewardedAd,
     double? estimatedCostUsd,
     List<PromptPreset>? promptPresets,
@@ -180,6 +185,7 @@ class ChatState {
       dailyTokensUsed: dailyTokensUsed ?? this.dailyTokensUsed,
       dailyTokenLimit: dailyTokenLimit ?? this.dailyTokenLimit,
       nextAdTriggerTokens: nextAdTriggerTokens ?? this.nextAdTriggerTokens,
+      rewardedTokenBonus: rewardedTokenBonus ?? this.rewardedTokenBonus,
       shouldOfferRewardedAd:
           shouldOfferRewardedAd ?? this.shouldOfferRewardedAd,
       estimatedCostUsd: estimatedCostUsd ?? this.estimatedCostUsd,
@@ -199,6 +205,8 @@ class ChatState {
   factory ChatState.initial({
     required LLMProvider defaultProvider,
     required int dailyTokenLimit,
+    required int nextAdTriggerTokens,
+    required int rewardedTokenBonus,
     required Map<String, List<LLMModelOption>> providerModels,
     required String defaultLanguageCode,
   }) {
@@ -230,7 +238,8 @@ class ChatState {
       streamingText: '',
       dailyTokensUsed: 0,
       dailyTokenLimit: dailyTokenLimit,
-      nextAdTriggerTokens: ChatController._defaultAdTriggerStep,
+      nextAdTriggerTokens: nextAdTriggerTokens,
+      rewardedTokenBonus: rewardedTokenBonus,
       shouldOfferRewardedAd: false,
       estimatedCostUsd: 0,
       promptPresets: const [],
@@ -254,10 +263,14 @@ class ChatController extends StateNotifier<ChatState> {
     this._authService,
     this._cloudSync,
     this._localRag,
+    this._runtimeConfig,
+    this._observability,
   ) : super(
         ChatState.initial(
-          defaultProvider: _registry.defaultProvider,
-          dailyTokenLimit: _defaultBaseDailyTokenLimit,
+          defaultProvider: _initialDefaultProvider(_registry, _runtimeConfig),
+          dailyTokenLimit: _runtimeConfig.baseDailyTokenLimit,
+          nextAdTriggerTokens: _runtimeConfig.adTriggerStep,
+          rewardedTokenBonus: _runtimeConfig.rewardedTokenBonus,
           providerModels: _initialProviderModels(_registry),
           defaultLanguageCode: _deviceLanguageCode(),
         ),
@@ -270,6 +283,8 @@ class ChatController extends StateNotifier<ChatState> {
   final AuthService _authService;
   final CloudSyncService _cloudSync;
   final LocalRagService _localRag;
+  final AppRuntimeConfig _runtimeConfig;
+  final ObservabilityService _observability;
 
   static const String _currentChatKey = 'currentChatId';
   static const String _providerKey = 'defaultProviderId';
@@ -303,11 +318,6 @@ class ChatController extends StateNotifier<ChatState> {
 
   static const String _onboardingSeenKey = 'onboardingSeen';
   static const String _onboardingVariantKey = 'onboardingVariant';
-
-  static const int _defaultBaseDailyTokenLimit = 20000;
-  static const int _premiumDailyTokenLimit = 100000;
-  static const int _defaultAdTriggerStep = 5000;
-  static const int _rewardedTokenBonus = 2500;
 
   bool _cancelRequested = false;
   final Map<String, int> _providerFailureCounts = <String, int>{};
@@ -374,7 +384,7 @@ class ChatController extends StateNotifier<ChatState> {
     );
     final nextAdTriggerTokens = _parseInt(
       await _repo.getAppState(_nextAdTriggerKey),
-      fallback: _defaultAdTriggerStep,
+      fallback: _runtimeConfig.adTriggerStep,
     );
 
     final memoryNotes = _parseStringList(
@@ -409,7 +419,9 @@ class ChatController extends StateNotifier<ChatState> {
     );
     final onboardingVariant = await _resolveOnboardingVariant();
 
-    final fallbackProvider = _registry.defaultProvider;
+    await _observability.syncConsent(analyticsConsent: analyticsConsent);
+
+    final fallbackProvider = _runtimeDefaultProvider();
     final selectedProvider = providerId == null
         ? fallbackProvider
         : _safeProviderById(providerId);
@@ -460,6 +472,7 @@ class ChatController extends StateNotifier<ChatState> {
       dailyTokensUsed: usageTokens,
       dailyTokenLimit: dailyTokenLimit,
       nextAdTriggerTokens: nextAdTriggerTokens,
+      rewardedTokenBonus: _runtimeConfig.rewardedTokenBonus,
       shouldOfferRewardedAd: false,
       estimatedCostUsd: estimateUsdFromTokens(usageTokens),
       promptPresets: promptPresets,
@@ -724,6 +737,7 @@ class ChatController extends StateNotifier<ChatState> {
 
   Future<void> setAnalyticsConsent(bool enabled) async {
     await _repo.setAppState(_analyticsConsentKey, enabled.toString());
+    await _observability.syncConsent(analyticsConsent: enabled);
     state = state.copyWith(analyticsConsent: enabled);
   }
 
@@ -798,17 +812,17 @@ class ChatController extends StateNotifier<ChatState> {
 
   Future<void> grantRewardedTokens() async {
     final currentUsage = await _loadDailyUsage();
-    final updatedUsage = (currentUsage - _rewardedTokenBonus)
+    final updatedUsage = (currentUsage - state.rewardedTokenBonus)
         .clamp(0, 1 << 30)
         .toInt();
     await _repo.setAppState(_dailyUsageTokensKey, updatedUsage.toString());
     await _repo.setAppState(
       _nextAdTriggerKey,
-      (updatedUsage + _defaultAdTriggerStep).toString(),
+      (updatedUsage + _runtimeConfig.adTriggerStep).toString(),
     );
     state = state.copyWith(
       dailyTokensUsed: updatedUsage,
-      nextAdTriggerTokens: updatedUsage + _defaultAdTriggerStep,
+      nextAdTriggerTokens: updatedUsage + _runtimeConfig.adTriggerStep,
       estimatedCostUsd: estimateUsdFromTokens(updatedUsage),
       shouldOfferRewardedAd: false,
     );
@@ -1509,7 +1523,7 @@ class ChatController extends StateNotifier<ChatState> {
       await _repo.setAppState(_dailyUsageTokensKey, '0');
       await _repo.setAppState(
         _nextAdTriggerKey,
-        _defaultAdTriggerStep.toString(),
+        _runtimeConfig.adTriggerStep.toString(),
       );
       return 0;
     }
@@ -1528,7 +1542,7 @@ class ChatController extends StateNotifier<ChatState> {
         !state.isPremium &&
         updatedUsage >= state.nextAdTriggerTokens;
     final nextTrigger = shouldOfferRewardedAd
-        ? updatedUsage + _defaultAdTriggerStep
+        ? updatedUsage + _runtimeConfig.adTriggerStep
         : state.nextAdTriggerTokens;
 
     await _repo.setAppState(_dailyUsageTokensKey, updatedUsage.toString());
@@ -1726,7 +1740,9 @@ class ChatController extends StateNotifier<ChatState> {
   }
 
   int _dailyLimitForPremium(bool enabled) {
-    return enabled ? _premiumDailyTokenLimit : _defaultBaseDailyTokenLimit;
+    return enabled
+        ? _runtimeConfig.premiumDailyTokenLimit
+        : _runtimeConfig.baseDailyTokenLimit;
   }
 
   String _normalizeLanguageCode(String code) {
@@ -1736,6 +1752,23 @@ class ChatController extends StateNotifier<ChatState> {
   static String _deviceLanguageCode() {
     final code = ui.PlatformDispatcher.instance.locale.languageCode;
     return AppStrings.supportedLanguageCodes.contains(code) ? code : 'it';
+  }
+
+  static LLMProvider _initialDefaultProvider(
+    LLMRegistry registry,
+    AppRuntimeConfig runtimeConfig,
+  ) {
+    final configuredId = runtimeConfig.defaultProviderId.trim();
+    for (final provider in registry.providers) {
+      if (provider.id == configuredId) {
+        return provider;
+      }
+    }
+    return registry.defaultProvider;
+  }
+
+  LLMProvider _runtimeDefaultProvider() {
+    return _initialDefaultProvider(_registry, _runtimeConfig);
   }
 
   AppStrings get _strings => AppStrings.ofCode(state.preferredLanguageCode);
@@ -1756,6 +1789,12 @@ class ChatController extends StateNotifier<ChatState> {
     _providerBlockedUntil.remove(providerId);
     // ignore: discarded_futures
     _incrementMetrics(success: true, latencyMs: latencyMs);
+    // ignore: discarded_futures
+    _observability.recordProviderResult(
+      providerId: providerId,
+      success: true,
+      latencyMs: latencyMs,
+    );
   }
 
   void _recordProviderFailure(String providerId, int latencyMs) {
@@ -1771,6 +1810,12 @@ class ChatController extends StateNotifier<ChatState> {
 
     // ignore: discarded_futures
     _incrementMetrics(success: false, latencyMs: latencyMs);
+    // ignore: discarded_futures
+    _observability.recordProviderResult(
+      providerId: providerId,
+      success: false,
+      latencyMs: latencyMs,
+    );
     state = state.copyWith(openCircuitProviders: _currentOpenCircuits());
   }
 

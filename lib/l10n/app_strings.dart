@@ -58,6 +58,14 @@ class AppStrings {
   String get email => pick(it: 'Email', en: 'Email');
   String get password => pick(it: 'Password', en: 'Password');
   String get register => pick(it: 'Registrati', en: 'Register');
+  String get forgotPassword =>
+      pick(it: 'Password dimenticata?', en: 'Forgot password?');
+  String get sendResetEmail =>
+      pick(it: 'Invia reset password', en: 'Send password reset');
+  String resetEmailSent(String email) => pick(
+    it: 'Email di reset inviata a $email.',
+    en: 'Password reset email sent to $email.',
+  );
   String get continueWithGoogle =>
       pick(it: 'Continua con Google', en: 'Continue with Google');
   String get continueWithApple =>
@@ -274,6 +282,32 @@ class AppStrings {
       pick(it: 'Lingua preferita', en: 'Preferred language');
   String get emailAddress => pick(it: 'Email', en: 'Email');
   String get accountSection => pick(it: 'Account', en: 'Account');
+  String get runtimeDiagnostics =>
+      pick(it: 'Diagnostica runtime', en: 'Runtime diagnostics');
+  String get noRuntimeWarnings => pick(
+    it: 'Nessun warning di configurazione rilevato.',
+    en: 'No runtime configuration warnings detected.',
+  );
+  String get emailVerified => pick(
+    it: 'Email verificata',
+    en: 'Email verified',
+  );
+  String get emailNotVerified => pick(
+    it: 'Email non verificata',
+    en: 'Email not verified',
+  );
+  String get sendVerificationEmail => pick(
+    it: 'Invia email di verifica',
+    en: 'Send verification email',
+  );
+  String get verificationEmailSent => pick(
+    it: 'Email di verifica inviata.',
+    en: 'Verification email sent.',
+  );
+  String get refreshVerificationStatus => pick(
+    it: 'Aggiorna stato verifica',
+    en: 'Refresh verification status',
+  );
   String get privacySection => pick(it: 'Privacy', en: 'Privacy');
   String get dataSection => pick(it: 'Dati e backup', en: 'Data and backups');
   String get premiumSection => pick(it: 'Premium', en: 'Premium');

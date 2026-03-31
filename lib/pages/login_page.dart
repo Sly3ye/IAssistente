@@ -54,10 +54,34 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     await _withLoading(() async {
       if (isRegister) {
         await auth.registerWithEmail(email: email, password: password);
+        await auth.sendCurrentEmailVerification();
       } else {
         await auth.signInWithEmail(email: email, password: password);
       }
     });
+  }
+
+  Future<void> _resetPassword() async {
+    final email = emailController.text.trim();
+    final strings = AppStrings.ofCode(
+      ref.read(chatControllerProvider).preferredLanguageCode,
+    );
+    if (email.isEmpty) {
+      setState(() => errorText = strings.enterEmailAndPassword);
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    await _withLoading(() async {
+      await ref
+          .read(authServiceProvider)
+          .sendPasswordResetEmail(email: email);
+    });
+
+    if (!mounted || errorText != null) return;
+    messenger.showSnackBar(
+      SnackBar(content: Text(strings.resetEmailSent(email))),
+    );
   }
 
   Future<void> _signInGoogle() async {
@@ -121,6 +145,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               onPressed: isLoading ? null : _submitEmail,
               child: Text(isRegister ? strings.register : strings.login),
             ),
+            if (!isRegister)
+              TextButton(
+                onPressed: isLoading ? null : _resetPassword,
+                child: Text(strings.forgotPassword),
+              ),
             TextButton(
               onPressed: isLoading
                   ? null

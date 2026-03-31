@@ -14,6 +14,7 @@ class AuthService {
 
   User? get currentUser => _auth.currentUser;
   String? get currentEmail => _auth.currentUser?.email;
+  bool get isEmailVerified => _auth.currentUser?.emailVerified ?? false;
   String get currentDisplayName => _auth.currentUser?.displayName ?? '';
   String get currentPhotoUrl => _auth.currentUser?.photoURL ?? '';
   List<String> get currentProviderIds =>
@@ -67,6 +68,22 @@ class AuthService {
   }
 
   Future<void> signOut() => _auth.signOut();
+
+  Future<void> sendPasswordResetEmail({required String email}) {
+    return _auth.sendPasswordResetEmail(email: email);
+  }
+
+  Future<void> sendCurrentEmailVerification() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw StateError('Utente non autenticato.');
+    }
+    await user.sendEmailVerification();
+  }
+
+  Future<void> reloadCurrentUser() async {
+    await _auth.currentUser?.reload();
+  }
 
   Future<void> updateProfile({
     required String displayName,

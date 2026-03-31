@@ -34,7 +34,10 @@ class _AccountPageState extends ConsumerState<AccountPage> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(chatControllerProvider);
+    final authService = ref.watch(authServiceProvider);
+    final diagnostics = ref.watch(appConfigDiagnosticsProvider);
     final strings = AppStrings.ofCode(state.preferredLanguageCode);
+    final isEmailVerified = authService.isEmailVerified;
 
     if (!_initialized) {
       _initialized = true;
@@ -69,6 +72,68 @@ class _AccountPageState extends ConsumerState<AccountPage> {
               border: const OutlineInputBorder(),
             ),
           ),
+          const SizedBox(height: 12),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(
+              isEmailVerified ? Icons.verified_user : Icons.mark_email_unread,
+            ),
+            title: Text(
+              isEmailVerified
+                  ? strings.emailVerified
+                  : strings.emailNotVerified,
+            ),
+          ),
+          if (!isEmailVerified && state.profileEmail.trim().isNotEmpty)
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                FilledButton.tonal(
+                  onPressed: () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    try {
+                      await ref
+                          .read(authServiceProvider)
+                          .sendCurrentEmailVerification();
+                      if (!mounted) return;
+                      messenger.showSnackBar(
+                        SnackBar(
+                          content: Text(strings.verificationEmailSent),
+                        ),
+                      );
+                    } catch (error) {
+                      if (!mounted) return;
+                      messenger.showSnackBar(
+                        SnackBar(content: Text(error.toString())),
+                      );
+                    }
+                  },
+                  child: Text(strings.sendVerificationEmail),
+                ),
+                OutlinedButton(
+                  onPressed: () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    try {
+                      await ref.read(authServiceProvider).reloadCurrentUser();
+                      if (!mounted) return;
+                      setState(() {});
+                      messenger.showSnackBar(
+                        SnackBar(
+                          content: Text(strings.refreshVerificationStatus),
+                        ),
+                      );
+                    } catch (error) {
+                      if (!mounted) return;
+                      messenger.showSnackBar(
+                        SnackBar(content: Text(error.toString())),
+                      );
+                    }
+                  },
+                  child: Text(strings.refreshVerificationStatus),
+                ),
+              ],
+            ),
           const SizedBox(height: 12),
           TextField(
             controller: _avatarController,
@@ -120,6 +185,38 @@ class _AccountPageState extends ConsumerState<AccountPage> {
             },
             child: Text(strings.saveProfile),
           ),
+          const SizedBox(height: 24),
+          Text(
+            strings.runtimeDiagnostics,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 12),
+          if (!diagnostics.hasErrors && !diagnostics.hasWarnings)
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(strings.noRuntimeWarnings),
+              ),
+            ),
+          for (final error in diagnostics.errors)
+            Card(
+              color: Colors.red.shade50,
+              child: ListTile(
+                leading: Icon(Icons.error_outline, color: Colors.red.shade700),
+                title: Text(error),
+              ),
+            ),
+          for (final warning in diagnostics.warnings)
+            Card(
+              color: Colors.orange.shade50,
+              child: ListTile(
+                leading: Icon(
+                  Icons.warning_amber_outlined,
+                  color: Colors.orange.shade800,
+                ),
+                title: Text(warning),
+              ),
+            ),
           const SizedBox(height: 24),
           Text(
             strings.privacySection,

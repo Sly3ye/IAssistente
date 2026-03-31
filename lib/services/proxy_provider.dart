@@ -14,7 +14,7 @@ class ProxyProvider implements LLMProvider {
   String get label => "Proxy";
 
   @override
-  bool get supportsStreaming => false;
+  bool get supportsStreaming => true;
 
   @override
   List<LLMModelOption> get models => const [
@@ -28,7 +28,10 @@ class ProxyProvider implements LLMProvider {
 
     final modelsUrl = baseUrl.replaceAll('/v1/chat', '/v1/models');
     try {
-      final response = await http.get(Uri.parse(modelsUrl));
+      final response = await http.get(
+        Uri.parse(modelsUrl),
+        headers: _requestHeaders(),
+      );
       final data = jsonDecode(response.body);
       final rows = data['models'];
       if (rows is! List) return models;
@@ -68,7 +71,7 @@ class ProxyProvider implements LLMProvider {
     try {
       final response = await http.post(
         Uri.parse(baseUrl),
-        headers: {"Content-Type": "application/json"},
+        headers: _requestHeaders(),
         body: jsonEncode({
           "provider": provider,
           "model": modelId,
@@ -108,12 +111,68 @@ class ProxyProvider implements LLMProvider {
     required List<Message> messages,
     required LLMRequestConfig config,
   }) async* {
-    final reply = await sendMessage(
-      modelId: modelId,
-      messages: messages,
-      config: config,
-    );
-    yield reply;
+    final baseUrl = dotenv.env['LLM_PROXY_URL'];
+    final provider = dotenv.env['LLM_PROXY_PROVIDER'] ?? 'openai';
+    if (baseUrl == null || baseUrl.isEmpty) {
+      yield "Configura LLM_PROXY_URL nel file .env per usare il proxy backend.";
+      return;
+    }
+
+    final request = http.Request("POST", Uri.parse(baseUrl))
+      ..headers.addAll({
+        ..._requestHeaders(),
+        "Accept": "text/event-stream",
+      })
+      ..body = jsonEncode({
+        "provider": provider,
+        "model": modelId,
+        "stream": true,
+        "messages": messages
+            .map((m) => {"role": m.role, "content": m.content})
+            .toList(),
+        "config": {
+          "systemPrompt": config.systemPrompt,
+          "temperature": config.temperature,
+          "maxTokens": config.maxTokens,
+          "topP": config.topP,
+        },
+      });
+
+    http.Client? client;
+    try {
+      client = http.Client();
+      final streamed = await client.send(request);
+      final buffer = StringBuffer();
+      await for (final chunk in streamed.stream) {
+        buffer.write(utf8.decode(chunk));
+        final text = buffer.toString();
+        final lines = text.split('\n');
+        buffer.clear();
+        if (!text.endsWith('\n')) {
+          buffer.write(lines.removeLast());
+        }
+        for (final line in lines) {
+          final trimmed = line.trim();
+          if (!trimmed.startsWith("data:")) continue;
+          final dataLine = trimmed.substring(5).trim();
+          if (dataLine == "[DONE]") return;
+          final jsonData = jsonDecode(dataLine);
+          final error = jsonData["error"];
+          if (error is String && error.isNotEmpty) {
+            yield "Errore Proxy: $error";
+            return;
+          }
+          final delta = jsonData["delta"];
+          if (delta is String && delta.isNotEmpty) {
+            yield delta;
+          }
+        }
+      }
+    } catch (e) {
+      yield "Errore Proxy: $e";
+    } finally {
+      client?.close();
+    }
   }
 
   @override
@@ -142,5 +201,13 @@ class ProxyProvider implements LLMProvider {
 
     if (title.startsWith("Errore")) return null;
     return title;
+  }
+
+  Map<String, String> _requestHeaders() {
+    final token = (dotenv.env['LLM_PROXY_AUTH_TOKEN'] ?? '').trim();
+    return {
+      "Content-Type": "application/json",
+      if (token.isNotEmpty) "Authorization": "Bearer $token",
+    };
   }
 }
