@@ -12,7 +12,12 @@
           "package_name": "com.example.iassistente"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "926630747739-1kjdle8udokokn9jds8k3mav7oi6j1mc.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDLwjMHxoikRaWY8QHaaFtas8O35y9vNVU"
@@ -20,7 +25,55 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "926630747739-1kjdle8udokokn9jds8k3mav7oi6j1mc.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "926630747739-1s4643ihroplh8if04hr7qnj3ed38ght.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.iassistente"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:926630747739:android:7647afdb3587d0818ce97e",
+        "android_client_info": {
+          "package_name": "it.dallacog.mimir"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "926630747739-1kjdle8udokokn9jds8k3mav7oi6j1mc.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDLwjMHxoikRaWY8QHaaFtas8O35y9vNVU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "926630747739-1kjdle8udokokn9jds8k3mav7oi6j1mc.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "926630747739-1s4643ihroplh8if04hr7qnj3ed38ght.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.iassistente"
+              }
+            }
+          ]
         }
       }
     }

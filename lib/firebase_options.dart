@@ -52,7 +52,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyDLwjMHxoikRaWY8QHaaFtas8O35y9vNVU',
-    appId: '1:926630747739:android:5745a545d969bd3b8ce97e',
+    appId: '1:926630747739:android:7647afdb3587d0818ce97e',
     messagingSenderId: '926630747739',
     projectId: 'chatbot-ce96f',
     storageBucket: 'chatbot-ce96f.firebasestorage.app',

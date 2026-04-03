@@ -17,14 +17,40 @@ jobs:
         with:
           channel: stable
 
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
       - name: Write minimal env
         run: cp .env.example .env
 
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Runtime config check
+        run: ./scripts/check_runtime_config.sh
+
+      - name: Release gate (static)
+        run: ./scripts/release_gate.sh --expected-package it.dallacog.mimir --relaxed
+
       - name: Analyze
+        env:
+          HTTP_PROXY: ""
+          HTTPS_PROXY: ""
+          NO_PROXY: localhost,127.0.0.1,::1
         run: flutter analyze
 
       - name: Test
-        run: flutter test
+        env:
+          HTTP_PROXY: ""
+          HTTPS_PROXY: ""
+          NO_PROXY: localhost,127.0.0.1,::1
+        run: flutter test -r compact
+
+      - name: Android debug build smoke
+        env:
+          HTTP_PROXY: ""
+          HTTPS_PROXY: ""
+          NO_PROXY: localhost,127.0.0.1,::1
+        run: flutter build apk --debug

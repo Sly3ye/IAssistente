@@ -7,6 +7,7 @@ import '../models/chat.dart';
 import '../pages/account_page.dart';
 import '../pages/premium_page.dart';
 import '../providers/app_providers.dart';
+import '../services/dev_options.dart';
 import '../services/llm_provider.dart';
 
 class ChatDrawer extends ConsumerStatefulWidget {
@@ -27,6 +28,7 @@ class _ChatDrawerState extends ConsumerState<ChatDrawer> {
     final registry = ref.watch(llmRegistryProvider);
     final runtimeConfig = ref.watch(appRuntimeConfigProvider);
     final strings = AppStrings.ofCode(state.preferredLanguageCode);
+    final authBypassEnabled = DevOptions.authBypassEnabled;
 
     return Drawer(
       child: SafeArea(
@@ -70,7 +72,9 @@ class _ChatDrawerState extends ConsumerState<ChatDrawer> {
                               ? state.profileName
                               : (state.profileEmail.isNotEmpty
                                     ? state.profileEmail
-                                    : strings.accountSection),
+                                    : (authBypassEnabled
+                                          ? strings.guestMode
+                                          : strings.accountSection)),
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                         Text(
@@ -303,15 +307,16 @@ class _ChatDrawerState extends ConsumerState<ChatDrawer> {
                 },
               ),
             const Divider(),
-            ListTile(
-              leading: const Icon(Icons.logout),
-              title: Text(strings.signOut),
-              onTap: () async {
-                await ref.read(authServiceProvider).signOut();
-                if (!context.mounted) return;
-                Navigator.pop(context);
-              },
-            ),
+            if (!authBypassEnabled)
+              ListTile(
+                leading: const Icon(Icons.logout),
+                title: Text(strings.signOut),
+                onTap: () async {
+                  await ref.read(authServiceProvider).signOut();
+                  if (!context.mounted) return;
+                  Navigator.pop(context);
+                },
+              ),
           ],
         ),
       ),

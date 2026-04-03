@@ -12,7 +12,13 @@ plugins {
 }
 
 val keystoreProperties = Properties()
-val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystorePropertiesFileInAndroid = rootProject.file("keystore.properties")
+val keystorePropertiesFileInRepoRoot = rootProject.file("../keystore.properties")
+val keystorePropertiesFile = when {
+    keystorePropertiesFileInAndroid.exists() -> keystorePropertiesFileInAndroid
+    keystorePropertiesFileInRepoRoot.exists() -> keystorePropertiesFileInRepoRoot
+    else -> keystorePropertiesFileInAndroid
+}
 if (keystorePropertiesFile.exists()) {
     keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
 }
@@ -26,7 +32,7 @@ fun releaseValue(name: String, fallback: String): String {
 }
 
 android {
-    namespace = "com.example.iassistente"
+    namespace = "it.dallacog.mimir"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -58,7 +64,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.iassistente"
+        applicationId = "it.dallacog.mimir"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

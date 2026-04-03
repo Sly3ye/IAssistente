@@ -29,14 +29,22 @@ class AppConfigDiagnostics {
       'ANTHROPIC_API_KEY',
       'GEMINI_API_KEY',
     ].where((key) => (environment[key] ?? '').trim().isNotEmpty).toList();
+    final hasProxy = proxyUrl.isNotEmpty;
+    final hasDirect = directKeys.isNotEmpty;
 
-    if (proxyUrl.isEmpty && directKeys.isEmpty) {
-      errors.add(
-        'Missing LLM configuration: set LLM_PROXY_URL or at least one direct provider API key.',
-      );
+    if (!hasProxy && !hasDirect) {
+      if (appEnv == 'production') {
+        errors.add(
+          'Missing LLM configuration: set LLM_PROXY_URL or at least one direct provider API key.',
+        );
+      } else {
+        warnings.add(
+          'No remote LLM configuration found. Development can still run with local Ollama.',
+        );
+      }
     }
 
-    if (proxyUrl.isNotEmpty) {
+    if (hasProxy) {
       final uri = Uri.tryParse(proxyUrl);
       if (uri == null || !uri.hasScheme || !uri.hasAuthority) {
         errors.add('LLM_PROXY_URL is not a valid absolute URL.');

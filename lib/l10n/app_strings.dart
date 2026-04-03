@@ -39,7 +39,7 @@ class AppStrings {
     }
   }
 
-  String get appTitle => pick(it: 'IAssistente', en: 'IAssistente');
+  String get appTitle => pick(it: 'Mimir', en: 'Mimir');
   String get configureFirebase => pick(
     it: 'Configura Firebase e riprova.',
     en: 'Configure Firebase and try again.',
@@ -78,6 +78,7 @@ class AppStrings {
     it: 'Non hai un account? Registrati',
     en: 'No account yet? Register',
   );
+  String get guestMode => pick(it: 'Modalita guest', en: 'Guest mode');
   String get enterEmailAndPassword =>
       pick(it: 'Inserisci email e password.', en: 'Enter email and password.');
 
@@ -119,10 +120,8 @@ class AppStrings {
   String get adsConsent => pick(it: 'Consenso ads', en: 'Ads consent');
   String get localRag =>
       pick(it: 'RAG locale sugli allegati', en: 'Local RAG on attachments');
-  String ragSourcesTitle(int count) => pick(
-    it: 'Fonti locali usate: $count',
-    en: 'Local sources used: $count',
-  );
+  String ragSourcesTitle(int count) =>
+      pick(it: 'Fonti locali usate: $count', en: 'Local sources used: $count');
   String ragDocumentsLabel(int count) => pick(
     it: 'Documenti indicizzati: $count',
     en: 'Indexed documents: $count',
@@ -286,32 +285,30 @@ class AppStrings {
       pick(it: 'Lingua preferita', en: 'Preferred language');
   String get emailAddress => pick(it: 'Email', en: 'Email');
   String get accountSection => pick(it: 'Account', en: 'Account');
+  String get authBypassTitle => pick(
+    it: 'Accesso saltato per sviluppo',
+    en: 'Auth bypass enabled for development',
+  );
+  String get authBypassBody => pick(
+    it: 'Stai usando l\'app senza login Firebase. Le funzioni esterne come account, backup cloud, ads e autenticazione reale restano escluse da questo test.',
+    en: 'You are using the app without Firebase sign-in. External features such as account, cloud backup, ads, and real authentication stay out of this test run.',
+  );
   String get runtimeDiagnostics =>
       pick(it: 'Diagnostica runtime', en: 'Runtime diagnostics');
   String get noRuntimeWarnings => pick(
     it: 'Nessun warning di configurazione rilevato.',
     en: 'No runtime configuration warnings detected.',
   );
-  String get emailVerified => pick(
-    it: 'Email verificata',
-    en: 'Email verified',
-  );
-  String get emailNotVerified => pick(
-    it: 'Email non verificata',
-    en: 'Email not verified',
-  );
-  String get sendVerificationEmail => pick(
-    it: 'Invia email di verifica',
-    en: 'Send verification email',
-  );
-  String get verificationEmailSent => pick(
-    it: 'Email di verifica inviata.',
-    en: 'Verification email sent.',
-  );
-  String get refreshVerificationStatus => pick(
-    it: 'Aggiorna stato verifica',
-    en: 'Refresh verification status',
-  );
+  String get emailVerified =>
+      pick(it: 'Email verificata', en: 'Email verified');
+  String get emailNotVerified =>
+      pick(it: 'Email non verificata', en: 'Email not verified');
+  String get sendVerificationEmail =>
+      pick(it: 'Invia email di verifica', en: 'Send verification email');
+  String get verificationEmailSent =>
+      pick(it: 'Email di verifica inviata.', en: 'Verification email sent.');
+  String get refreshVerificationStatus =>
+      pick(it: 'Aggiorna stato verifica', en: 'Refresh verification status');
   String get privacySection => pick(it: 'Privacy', en: 'Privacy');
   String get dataSection => pick(it: 'Dati e backup', en: 'Data and backups');
   String get dataPolicyTitle =>

@@ -31,13 +31,26 @@ Wrapper LLM multi-provider in Flutter con chat persistenti, auth Firebase, strea
 ## Setup rapido
 
 1. Crea il file `.env` da `.env.example`.
-2. Configura Firebase (`lib/firebase_options.dart` già incluso).
-3. Per deploy reale: compila anche gli ID AdMob e IAP nel `.env`.
-4. Avvia:
+2. Configura Firebase (`lib/firebase_options.dart` gia incluso).
+3. Per test locale puoi usare `Ollama` anche senza API key remota.
+4. Per deploy reale compila anche gli ID AdMob e IAP nel `.env`.
+5. Avvia:
 
 ```bash
 flutter pub get
 flutter run
+```
+
+### Debug Android su reti con proxy
+
+Se il terminale ha `HTTP_PROXY`/`HTTPS_PROXY`, Flutter puo perdere il collegamento
+al service protocol (`503` o `Connection refused` su `127.0.0.1`).
+Prima di `flutter run`, escludi localhost dal proxy.
+
+PowerShell:
+
+```powershell
+.\scripts\run_android_debug.ps1
 ```
 
 ## Proxy backend (consigliato)
@@ -47,9 +60,15 @@ Per non esporre API key nel client, usa il provider `Proxy`:
 ```bash
 cd proxy-server
 cp .env.example .env
-set -a
-source .env
-set +a
+node server.mjs
+```
+
+PowerShell:
+
+```powershell
+cd proxy-server
+Copy-Item .env.example .env -Force
+$env:OPENAI_API_KEY = "..."
 node server.mjs
 ```
 
@@ -72,7 +91,22 @@ Il proxy ora supporta:
 
 ```bash
 ./scripts/check_runtime_config.sh
+./scripts/release_gate.sh --expected-package it.dallacog.mimir --relaxed
 flutter analyze
 flutter test
 ./scripts/smoke_local.sh
+```
+
+PowerShell:
+
+```powershell
+.\scripts\check_runtime_config.ps1
+.\scripts\release_gate.ps1 -ExpectedPackage it.dallacog.mimir -Relaxed
+.\scripts\smoke_local.ps1
+```
+
+Gate pre-release (strict, blocca se `.env` non e production-ready):
+
+```powershell
+.\scripts\release_gate.ps1 -ExpectedPackage it.dallacog.mimir
 ```

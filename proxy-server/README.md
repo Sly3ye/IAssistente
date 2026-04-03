@@ -7,7 +7,15 @@ Server minimale per tenere le API key lato backend.
 ```bash
 cd proxy-server
 cp .env.example .env
-source .env
+node server.mjs
+```
+
+PowerShell:
+
+```powershell
+cd proxy-server
+Copy-Item .env.example .env -Force
+$env:OPENAI_API_KEY = "..."
 node server.mjs
 ```
 

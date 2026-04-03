@@ -189,8 +189,7 @@ class ChatState {
       dailyTokenLimit: dailyTokenLimit ?? this.dailyTokenLimit,
       nextAdTriggerTokens: nextAdTriggerTokens ?? this.nextAdTriggerTokens,
       rewardedTokenBonus: rewardedTokenBonus ?? this.rewardedTokenBonus,
-      latestRagSourceNames:
-          latestRagSourceNames ?? this.latestRagSourceNames,
+      latestRagSourceNames: latestRagSourceNames ?? this.latestRagSourceNames,
       shouldOfferRewardedAd:
           shouldOfferRewardedAd ?? this.shouldOfferRewardedAd,
       estimatedCostUsd: estimatedCostUsd ?? this.estimatedCostUsd,
@@ -582,10 +581,7 @@ class ChatController extends StateNotifier<ChatState> {
     );
     await _observability.logEvent(
       'chat_created',
-      parameters: {
-        'provider_id': chat.providerId,
-        'model_id': chat.modelId,
-      },
+      parameters: {'provider_id': chat.providerId, 'model_id': chat.modelId},
     );
   }
 
@@ -739,6 +735,21 @@ class ChatController extends StateNotifier<ChatState> {
 
   Future<void> setPreferOffline(bool enabled) async {
     await _repo.setAppState(_preferOfflineKey, enabled.toString());
+    if (enabled) {
+      final offlineProvider = _offlineProvider();
+      if (offlineProvider != null) {
+        final offlineModelId = _firstModelIdFor(offlineProvider.id);
+        await _repo.setAppState(_providerKey, offlineProvider.id);
+        await _repo.setAppState(_modelKey, offlineModelId);
+        state = state.copyWith(
+          preferOffline: true,
+          selectedProviderId: offlineProvider.id,
+          selectedModelId: offlineModelId,
+        );
+        return;
+      }
+    }
+
     state = state.copyWith(preferOffline: enabled);
   }
 
@@ -778,7 +789,9 @@ class ChatController extends StateNotifier<ChatState> {
     required String name,
     required String avatarUrl,
   }) async {
-    await _authService.updateProfile(displayName: name, photoUrl: avatarUrl);
+    if (_authService.currentUser != null) {
+      await _authService.updateProfile(displayName: name, photoUrl: avatarUrl);
+    }
     await _repo.setAppState(_profileNameKey, name.trim());
     await _repo.setAppState(_avatarUrlKey, avatarUrl.trim());
     state = state.copyWith(
@@ -1057,10 +1070,7 @@ class ChatController extends StateNotifier<ChatState> {
     if (isFirstChatMessage) {
       await _observability.logEvent(
         'first_chat_message',
-        parameters: {
-          'provider_id': chat.providerId,
-          'model_id': chat.modelId,
-        },
+        parameters: {'provider_id': chat.providerId, 'model_id': chat.modelId},
       );
     }
 
@@ -1346,8 +1356,7 @@ class ChatController extends StateNotifier<ChatState> {
       messages: updatedMessages,
       isSending: false,
       streamingText: '',
-      latestRagSourceNames:
-          isError ? const [] : resolvedConfig.ragSourceNames,
+      latestRagSourceNames: isError ? const [] : resolvedConfig.ragSourceNames,
       errorMessage: isError ? savedReply : null,
       selectedProviderId: current.providerId,
       selectedModelId: current.modelId,
@@ -1479,6 +1488,19 @@ class ChatController extends StateNotifier<ChatState> {
     required String modelId,
     required String firstMessage,
   }) async {
+    if (state.preferOffline) {
+      final offlineProvider = _offlineProvider();
+      if (offlineProvider == null) return null;
+      final offlineTitle = await offlineProvider.generateTitle(
+        modelId: _firstModelIdFor(offlineProvider.id),
+        firstMessage: firstMessage,
+      );
+      if (offlineTitle != null && offlineTitle.trim().isNotEmpty) {
+        return offlineTitle.trim();
+      }
+      return null;
+    }
+
     final preferred = await preferredProvider.generateTitle(
       modelId: modelId,
       firstMessage: firstMessage,
@@ -1517,11 +1539,10 @@ class ChatController extends StateNotifier<ChatState> {
     }
 
     if (state.preferOffline) {
-      for (final provider in _registry.providers) {
-        if (provider.id == 'ollama') {
-          addProvider(provider, _firstModelIdFor(provider.id));
-          break;
-        }
+      final offlineProvider = _offlineProvider();
+      if (offlineProvider != null) {
+        addProvider(offlineProvider, _firstModelIdFor(offlineProvider.id));
+        return attempts;
       }
     }
 
@@ -1536,6 +1557,15 @@ class ChatController extends StateNotifier<ChatState> {
     }
 
     return attempts;
+  }
+
+  LLMProvider? _offlineProvider() {
+    for (final provider in _registry.providers) {
+      if (provider.id == 'ollama') {
+        return provider;
+      }
+    }
+    return null;
   }
 
   bool _isProviderError(String reply) {

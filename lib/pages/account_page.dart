@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_strings.dart';
 import '../providers/app_providers.dart';
+import '../services/dev_options.dart';
 
 class AccountPage extends ConsumerStatefulWidget {
   const AccountPage({super.key});
@@ -37,7 +38,9 @@ class _AccountPageState extends ConsumerState<AccountPage> {
     final authService = ref.watch(authServiceProvider);
     final diagnostics = ref.watch(appConfigDiagnosticsProvider);
     final strings = AppStrings.ofCode(state.preferredLanguageCode);
-    final isEmailVerified = authService.isEmailVerified;
+    final authBypassEnabled = DevOptions.authBypassEnabled;
+    final hasAuthenticatedUser = authService.currentUser != null;
+    final isEmailVerified = !authBypassEnabled && authService.isEmailVerified;
 
     if (!_initialized) {
       _initialized = true;
@@ -51,6 +54,20 @@ class _AccountPageState extends ConsumerState<AccountPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          if (authBypassEnabled) ...[
+            Card(
+              color: Colors.amber.shade50,
+              child: ListTile(
+                leading: Icon(
+                  Icons.science_outlined,
+                  color: Colors.amber.shade900,
+                ),
+                title: Text(strings.authBypassTitle),
+                subtitle: Text(strings.authBypassBody),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           Text(
             strings.accountSection,
             style: Theme.of(context).textTheme.titleMedium,
@@ -84,7 +101,9 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                   : strings.emailNotVerified,
             ),
           ),
-          if (!isEmailVerified && state.profileEmail.trim().isNotEmpty)
+          if (!authBypassEnabled &&
+              !isEmailVerified &&
+              state.profileEmail.trim().isNotEmpty)
             Wrap(
               spacing: 12,
               runSpacing: 12,
@@ -98,9 +117,7 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                           .sendCurrentEmailVerification();
                       if (!mounted) return;
                       messenger.showSnackBar(
-                        SnackBar(
-                          content: Text(strings.verificationEmailSent),
-                        ),
+                        SnackBar(content: Text(strings.verificationEmailSent)),
                       );
                     } catch (error) {
                       if (!mounted) return;
@@ -243,9 +260,9 @@ class _AccountPageState extends ConsumerState<AccountPage> {
             title: Text(strings.adsConsent),
             value: state.adsConsent,
             onChanged: (value) async {
-              await ref.read(chatControllerProvider.notifier).setAdsConsent(
-                value,
-              );
+              await ref
+                  .read(chatControllerProvider.notifier)
+                  .setAdsConsent(value);
               await ref
                   .read(monetizationServiceProvider)
                   .updateAdsConsent(
@@ -290,54 +307,56 @@ class _AccountPageState extends ConsumerState<AccountPage> {
               );
             },
           ),
-          ListTile(
-            leading: const Icon(Icons.cloud_upload_outlined),
-            title: Text(strings.cloudBackupPush),
-            onTap: () async {
-              final messenger = ScaffoldMessenger.of(context);
-              try {
-                await ref
-                    .read(chatControllerProvider.notifier)
-                    .pushCloudBackup();
-                if (!mounted) return;
-                messenger.showSnackBar(
-                  SnackBar(content: Text(strings.cloudBackupUploaded)),
-                );
-              } catch (error) {
-                if (!mounted) return;
-                messenger.showSnackBar(
-                  SnackBar(content: Text(error.toString())),
-                );
-              }
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.cloud_download_outlined),
-            title: Text(strings.cloudBackupPull),
-            onTap: () async {
-              final messenger = ScaffoldMessenger.of(context);
-              try {
-                final restored = await ref
-                    .read(chatControllerProvider.notifier)
-                    .pullCloudBackup();
-                if (!mounted) return;
-                messenger.showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      restored
-                          ? strings.cloudBackupRestored
-                          : strings.noBackupFound('cloud'),
+          if (!authBypassEnabled && hasAuthenticatedUser)
+            ListTile(
+              leading: const Icon(Icons.cloud_upload_outlined),
+              title: Text(strings.cloudBackupPush),
+              onTap: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                try {
+                  await ref
+                      .read(chatControllerProvider.notifier)
+                      .pushCloudBackup();
+                  if (!mounted) return;
+                  messenger.showSnackBar(
+                    SnackBar(content: Text(strings.cloudBackupUploaded)),
+                  );
+                } catch (error) {
+                  if (!mounted) return;
+                  messenger.showSnackBar(
+                    SnackBar(content: Text(error.toString())),
+                  );
+                }
+              },
+            ),
+          if (!authBypassEnabled && hasAuthenticatedUser)
+            ListTile(
+              leading: const Icon(Icons.cloud_download_outlined),
+              title: Text(strings.cloudBackupPull),
+              onTap: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                try {
+                  final restored = await ref
+                      .read(chatControllerProvider.notifier)
+                      .pullCloudBackup();
+                  if (!mounted) return;
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        restored
+                            ? strings.cloudBackupRestored
+                            : strings.noBackupFound('cloud'),
+                      ),
                     ),
-                  ),
-                );
-              } catch (error) {
-                if (!mounted) return;
-                messenger.showSnackBar(
-                  SnackBar(content: Text(error.toString())),
-                );
-              }
-            },
-          ),
+                  );
+                } catch (error) {
+                  if (!mounted) return;
+                  messenger.showSnackBar(
+                    SnackBar(content: Text(error.toString())),
+                  );
+                }
+              },
+            ),
           ListTile(
             leading: const Icon(Icons.delete_sweep_outlined),
             title: Text(strings.clearLocalChatData),
@@ -376,11 +395,14 @@ class _AccountPageState extends ConsumerState<AccountPage> {
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 12),
-          FilledButton.tonal(
-            onPressed: () => _confirmDeleteAccount(context, strings),
-            style: FilledButton.styleFrom(foregroundColor: Colors.red.shade900),
-            child: Text(strings.deleteAccount),
-          ),
+          if (!authBypassEnabled && hasAuthenticatedUser)
+            FilledButton.tonal(
+              onPressed: () => _confirmDeleteAccount(context, strings),
+              style: FilledButton.styleFrom(
+                foregroundColor: Colors.red.shade900,
+              ),
+              child: Text(strings.deleteAccount),
+            ),
         ],
       ),
     );
