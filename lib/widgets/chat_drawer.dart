@@ -5,10 +5,14 @@ import '../controllers/chat_controller.dart';
 import '../l10n/app_strings.dart';
 import '../models/chat.dart';
 import '../pages/account_page.dart';
+import '../pages/diet_agent_page.dart';
+import '../pages/legal_agent_page.dart';
+import '../pages/memory_page.dart';
+import '../pages/medical_agent_page.dart';
 import '../pages/premium_page.dart';
+import '../pages/rag_documents_page.dart';
 import '../providers/app_providers.dart';
 import '../services/dev_options.dart';
-import '../services/llm_provider.dart';
 
 class ChatDrawer extends ConsumerStatefulWidget {
   const ChatDrawer({super.key});
@@ -19,369 +23,371 @@ class ChatDrawer extends ConsumerStatefulWidget {
 
 class _ChatDrawerState extends ConsumerState<ChatDrawer> {
   Offset? _tapPosition;
-  String _query = '';
-  Set<String> _messageMatchChatIds = <String>{};
 
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(chatControllerProvider);
-    final registry = ref.watch(llmRegistryProvider);
-    final runtimeConfig = ref.watch(appRuntimeConfigProvider);
     final strings = AppStrings.ofCode(state.preferredLanguageCode);
     final authBypassEnabled = DevOptions.authBypassEnabled;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final chats = _sortedChats(state.chats, state.pinnedChatIds);
 
     return Drawer(
+      width: 318,
+      backgroundColor: theme.scaffoldBackgroundColor,
       child: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(12),
+        child: Column(
           children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.indigo.shade50,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    width: 40,
-                    height: 40,
+                    padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: Colors.indigo.shade200,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.smart_toy_outlined,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'IAssistente',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          state.profileName.isNotEmpty
-                              ? state.profileName
-                              : (state.profileEmail.isNotEmpty
-                                    ? state.profileEmail
-                                    : (authBypassEnabled
-                                          ? strings.guestMode
-                                          : strings.accountSection)),
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                        Text(
-                          '${_providerLabel(registry, state.selectedProviderId)} · ${state.selectedModelId}',
-                          style: Theme.of(context).textTheme.labelSmall,
-                        ),
-                        Text(
-                          strings.tokenCostStats(
-                            state.dailyTokensUsed,
-                            state.dailyTokenLimit,
-                            state.estimatedCostUsd,
-                          ),
-                          style: Theme.of(context).textTheme.labelSmall,
-                        ),
-                        Text(
-                          strings.requestStats(
-                            state.successRequests,
-                            state.failedRequests,
-                            state.averageLatencyMs,
-                          ),
-                          style: Theme.of(context).textTheme.labelSmall,
+                      color: theme.cardColor,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: isDark
+                              ? const Color(0x55000000)
+                              : const Color(0x14000000),
+                          blurRadius: 22,
+                          offset: Offset(0, 10),
                         ),
                       ],
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.add),
-                    onPressed: () =>
-                        ref.read(chatControllerProvider.notifier).newChat(),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              decoration: InputDecoration(
-                prefixIcon: const Icon(Icons.search),
-                hintText: strings.searchChats,
-                border: const OutlineInputBorder(),
-              ),
-              onChanged: _onSearchChanged,
-            ),
-            const SizedBox(height: 8),
-            ListTile(
-              title: Text(
-                strings.drawerChats,
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-            ),
-            const Divider(),
-            if (_filteredChats(state.chats).isEmpty)
-              Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: Center(child: Text(strings.noChatsYet)),
-              ),
-            for (final chat in _filteredChats(state.chats))
-              GestureDetector(
-                onTapDown: (details) {
-                  _tapPosition = details.globalPosition;
-                },
-                child: ListTile(
-                  title: Text(
-                    chat.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: _buildSubtitle(chat, registry),
-                  selected: state.currentChat?.id == chat.id,
-                  onTap: () {
-                    ref.read(chatControllerProvider.notifier).loadChat(chat.id);
-                    Navigator.pop(context);
-                  },
-                  onLongPress: () async {
-                    if (_tapPosition == null) return;
-                    final overlay = Overlay.of(context);
-                    final overlayBox =
-                        overlay.context.findRenderObject() as RenderBox;
-                    final position = RelativeRect.fromRect(
-                      Rect.fromLTWH(_tapPosition!.dx, _tapPosition!.dy, 0, 0),
-                      Offset.zero & overlayBox.size,
-                    );
-
-                    final action = await showMenu(
-                      context: context,
-                      position: position,
-                      items: [
-                        PopupMenuItem(
-                          value: 'rename',
-                          child: Row(
-                            children: [
-                              Icon(Icons.edit_outlined),
-                              SizedBox(width: 8),
-                              Text(strings.rename),
-                            ],
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(18),
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF0E2D1D), Color(0xFF214536)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.auto_awesome_rounded,
+                            color: Color(0xFFE9D2A3),
+                            size: 28,
                           ),
                         ),
-                        PopupMenuItem(
-                          value: 'delete',
-                          child: Row(
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(Icons.delete_outline, color: Colors.red),
-                              SizedBox(width: 8),
                               Text(
-                                strings.delete,
-                                style: TextStyle(color: Colors.red),
+                                state.profileName.isNotEmpty
+                                    ? state.profileName
+                                    : 'Mimir',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.titleLarge,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                state.isPremium
+                                    ? 'Professional Tier'
+                                    : 'Core Plan',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: theme.textTheme.bodySmall?.color,
+                                    ),
                               ),
                             ],
                           ),
                         ),
                       ],
-                    );
-
-                    if (!context.mounted) return;
-                    if (action == 'rename') {
-                      _showRenameDialog(context, chat, ref);
-                    } else if (action == 'delete') {
-                      ref
-                          .read(chatControllerProvider.notifier)
-                          .deleteChat(chat);
-                    }
-                  },
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  FilledButton.icon(
+                    onPressed: () {
+                      ref.read(chatControllerProvider.notifier).newChat();
+                      Navigator.pop(context);
+                    },
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('New Conversation'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: theme.colorScheme.primary,
+                      minimumSize: const Size.fromHeight(52),
+                      alignment: Alignment.centerLeft,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  _DrawerNavTile(
+                    icon: Icons.history_rounded,
+                    label: 'Chat History',
+                    isSelected: true,
+                    onTap: () {},
+                  ),
+                  _DrawerNavTile(
+                    icon: Icons.restaurant_menu_rounded,
+                    label: 'Agente dieta',
+                    onTap: () async {
+                      Navigator.pop(context);
+                      await Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const DietAgentPage()),
+                      );
+                    },
+                  ),
+                  _DrawerNavTile(
+                    icon: Icons.medical_services_outlined,
+                    label: 'Medico di base',
+                    onTap: () async {
+                      Navigator.pop(context);
+                      await Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const MedicalAgentPage(),
+                        ),
+                      );
+                    },
+                  ),
+                  _DrawerNavTile(
+                    icon: Icons.gavel_rounded,
+                    label: 'Avvocato',
+                    onTap: () async {
+                      Navigator.pop(context);
+                      await Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const LegalAgentPage()),
+                      );
+                    },
+                  ),
+                  _DrawerNavTile(
+                    icon: Icons.psychology_alt_outlined,
+                    label: 'Memoria utente',
+                    onTap: () async {
+                      Navigator.pop(context);
+                      await Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const MemoryPage()),
+                      );
+                    },
+                  ),
+                  _DrawerNavTile(
+                    icon: Icons.dataset_linked_outlined,
+                    label: 'Documenti RAG',
+                    onTap: () async {
+                      Navigator.pop(context);
+                      await Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const RagDocumentsPage(),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                children: [
+                  if (chats.isNotEmpty)
+                    for (final chat in chats)
+                      _ChatTile(
+                        chat: chat,
+                        isSelected: state.currentChat?.id == chat.id,
+                        isPinned: state.pinnedChatIds.contains(chat.id),
+                        subtitle: _formatDate(chat.updatedAt),
+                        onTap: () {
+                          ref.read(chatControllerProvider.notifier).loadChat(chat.id);
+                          Navigator.pop(context);
+                        },
+                        onTapDown: (details) => _tapPosition = details.globalPosition,
+                        onLongPress: () => _showChatMenu(context, chat, strings),
+                      )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24),
+                      child: Text(
+                        strings.noChatsYet,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF121816) : const Color(0xFFF7F3EA),
+                border: Border(
+                  top: BorderSide(color: theme.dividerColor),
                 ),
               ),
-            const SizedBox(height: 12),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.download_outlined),
-              title: Text(strings.exportFullBackup),
-              onTap: () async {
-                final messenger = ScaffoldMessenger.of(context);
-                final path = await ref
-                    .read(chatControllerProvider.notifier)
-                    .exportChatsBackup();
-                if (!context.mounted) return;
-                messenger.showSnackBar(
-                  SnackBar(content: Text(strings.backupExported(path))),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.share_outlined),
-              title: Text(strings.exportCurrentChat),
-              onTap: () async {
-                final messenger = ScaffoldMessenger.of(context);
-                final path = await ref
-                    .read(chatControllerProvider.notifier)
-                    .exportCurrentChatMarkdown();
-                if (!context.mounted) return;
-                final text = path == null
-                    ? strings.noCurrentChatToExport
-                    : strings.chatExported(path);
-                messenger.showSnackBar(SnackBar(content: Text(text)));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.upload_file_outlined),
-              title: Text(strings.importLatestBackup),
-              onTap: () async {
-                final messenger = ScaffoldMessenger.of(context);
-                final path = await ref
-                    .read(chatControllerProvider.notifier)
-                    .importChatsBackupFromLatest();
-                if (!context.mounted) return;
-                final message = path == null
-                    ? strings.noBackupFound('locale')
-                    : strings.backupImported(path);
-                messenger.showSnackBar(SnackBar(content: Text(message)));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete_sweep_outlined),
-              title: Text(strings.clearLocalChatData),
-              onTap: () async {
-                final shouldClear = await showDialog<bool>(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: Text(strings.deleteLocalDataConfirmTitle),
-                    content: Text(strings.deleteLocalDataConfirmBody),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: Text(strings.cancel),
-                      ),
-                      FilledButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        child: Text(strings.delete),
-                      ),
-                    ],
+              child: Column(
+                children: [
+                  InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () async {
+                      Navigator.pop(context);
+                      await Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const AccountPage()),
+                      );
+                    },
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? const Color(0xFF4A4331)
+                                : const Color(0xFFE7D7AE),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            _initialsFromState(state),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: isDark
+                                  ? theme.colorScheme.onSurface
+                                  : const Color(0xFF445145),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                state.profileName.isNotEmpty
+                                    ? state.profileName
+                                    : (state.profileEmail.isNotEmpty
+                                          ? state.profileEmail
+                                          : strings.guestMode),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                              Text(
+                                state.isPremium ? 'Pro Plan' : 'Core Plan',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (!authBypassEnabled)
+                          PopupMenuButton<String>(
+                            onSelected: (value) async {
+                              if (value == 'premium') {
+                                await Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => const PremiumPage(),
+                                  ),
+                                );
+                              } else if (value == 'logout') {
+                                await ref.read(authServiceProvider).signOut();
+                                if (!context.mounted) return;
+                                Navigator.pop(context);
+                              }
+                            },
+                            itemBuilder: (context) => [
+                              const PopupMenuItem(
+                                value: 'premium',
+                                child: Text('Premium'),
+                              ),
+                              PopupMenuItem(
+                                value: 'logout',
+                                child: Text(strings.signOut),
+                              ),
+                            ],
+                            child: const Padding(
+                              padding: EdgeInsets.all(8),
+                              child: Icon(Icons.more_horiz_rounded),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
-                );
-                if (shouldClear != true) return;
-                await ref
-                    .read(chatControllerProvider.notifier)
-                    .clearLocalChatsAndMessages();
-                if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(strings.localDataRemoved)),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.folder_open_outlined),
-              title: Text(strings.manageDocuments),
-              onTap: () => _showDocumentsDialog(context, strings, state),
-            ),
-            ListTile(
-              leading: const Icon(Icons.person_outline),
-              title: Text(strings.accountAndPrivacy),
-              onTap: () async {
-                Navigator.pop(context);
-                await Navigator.of(
-                  context,
-                ).push(MaterialPageRoute(builder: (_) => const AccountPage()));
-              },
-            ),
-            if (runtimeConfig.paywallEnabled)
-              ListTile(
-                leading: const Icon(Icons.workspace_premium_outlined),
-                title: Text(strings.premium),
-                onTap: () async {
-                  final navigator = Navigator.of(context);
-                  await ref
-                      .read(observabilityServiceProvider)
-                      .logEvent('paywall_opened');
-                  if (!context.mounted) return;
-                  navigator.pop();
-                  await navigator.push(
-                    MaterialPageRoute(builder: (_) => const PremiumPage()),
-                  );
-                },
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Mimir v2.4.0',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: theme.textTheme.bodySmall?.color,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            const Divider(),
-            if (!authBypassEnabled)
-              ListTile(
-                leading: const Icon(Icons.logout),
-                title: Text(strings.signOut),
-                onTap: () async {
-                  await ref.read(authServiceProvider).signOut();
-                  if (!context.mounted) return;
-                  Navigator.pop(context);
-                },
-              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Future<void> _onSearchChanged(String value) async {
-    final trimmed = value.trim();
-    setState(() {
-      _query = trimmed;
-      if (trimmed.isEmpty) {
-        _messageMatchChatIds = <String>{};
-      }
-    });
-
-    if (trimmed.isEmpty) return;
-
-    final ids = await ref
-        .read(chatControllerProvider.notifier)
-        .searchChatIdsByMessage(trimmed);
-    if (!mounted) return;
-
-    setState(() {
-      _messageMatchChatIds = ids;
-    });
-  }
-
-  List<Chat> _filteredChats(List<Chat> chats) {
-    if (_query.isEmpty) return chats;
-    final q = _query.toLowerCase();
-    return chats.where((chat) {
-      final titleMatch = chat.title.toLowerCase().contains(q);
-      final messageMatch = _messageMatchChatIds.contains(chat.id);
-      return titleMatch || messageMatch;
-    }).toList();
-  }
-
-  Widget _buildSubtitle(Chat chat, LLMRegistry registry) {
-    final providerLabel = _providerLabel(registry, chat.providerId);
-    return Text(
-      '$providerLabel · ${chat.modelId} · ${_formatDate(chat.updatedAt)}',
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
+  Future<void> _showChatMenu(
+    BuildContext context,
+    Chat chat,
+    AppStrings strings,
+  ) async {
+    if (_tapPosition == null) return;
+    final state = ref.read(chatControllerProvider);
+    final overlay = Overlay.of(context);
+    final overlayBox = overlay.context.findRenderObject() as RenderBox;
+    final position = RelativeRect.fromRect(
+      Rect.fromLTWH(_tapPosition!.dx, _tapPosition!.dy, 0, 0),
+      Offset.zero & overlayBox.size,
     );
-  }
 
-  String _providerLabel(LLMRegistry registry, String providerId) {
-    try {
-      return registry.byId(providerId).label;
-    } catch (_) {
-      return providerId;
+    final action = await showMenu<String>(
+      context: context,
+      position: position,
+      items: [
+        PopupMenuItem(
+          value: 'pin',
+          child: Text(
+            state.pinnedChatIds.contains(chat.id) ? 'Rimuovi fissa' : 'Fissa',
+          ),
+        ),
+        PopupMenuItem(value: 'rename', child: Text(strings.rename)),
+        PopupMenuItem(value: 'delete', child: Text(strings.delete)),
+      ],
+    );
+
+    if (!context.mounted) return;
+    if (action == 'pin') {
+      await ref.read(chatControllerProvider.notifier).togglePinnedChat(chat);
+    } else if (action == 'rename') {
+      _showRenameDialog(context, chat, strings);
+    } else if (action == 'delete') {
+      ref.read(chatControllerProvider.notifier).deleteChat(chat);
     }
   }
 
-  String _formatDate(DateTime date) {
-    final day = date.day.toString().padLeft(2, '0');
-    final month = date.month.toString().padLeft(2, '0');
-    return '$day/$month';
+  List<Chat> _sortedChats(List<Chat> chats, List<String> pinnedChatIds) {
+    final pinned = pinnedChatIds.toSet();
+    final sorted = [...chats];
+    sorted.sort((a, b) {
+      final aPinned = pinned.contains(a.id);
+      final bPinned = pinned.contains(b.id);
+      if (aPinned != bPinned) return aPinned ? -1 : 1;
+      return b.updatedAt.compareTo(a.updatedAt);
+    });
+    return sorted;
   }
 
-  void _showRenameDialog(BuildContext context, Chat chat, WidgetRef ref) {
+  void _showRenameDialog(
+    BuildContext context,
+    Chat chat,
+    AppStrings strings,
+  ) {
     final controllerText = TextEditingController(text: chat.title);
-    final strings = AppStrings.ofCode(
-      ref.read(chatControllerProvider).preferredLanguageCode,
-    );
     showDialog(
       context: context,
       builder: (context) {
@@ -400,9 +406,7 @@ class _ChatDrawerState extends ConsumerState<ChatDrawer> {
               onPressed: () {
                 final name = controllerText.text.trim();
                 if (name.isNotEmpty) {
-                  ref
-                      .read(chatControllerProvider.notifier)
-                      .renameChat(chat, name);
+                  ref.read(chatControllerProvider.notifier).renameChat(chat, name);
                 }
                 Navigator.pop(context);
               },
@@ -414,64 +418,126 @@ class _ChatDrawerState extends ConsumerState<ChatDrawer> {
     );
   }
 
-  void _showDocumentsDialog(
-    BuildContext context,
-    AppStrings strings,
-    ChatState state,
-  ) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          shrinkWrap: true,
-          children: [
-            Text(
-              strings.manageDocuments,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 12),
-            if (state.ragDocuments.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                child: Text(strings.noIndexedDocuments),
-              ),
-            for (final doc in state.ragDocuments)
-              ListTile(
-                title: Text(doc.name),
-                subtitle: Text(_formatDate(doc.createdAt)),
-                trailing: IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: () async {
-                    await ref
-                        .read(chatControllerProvider.notifier)
-                        .deleteRagDocument(doc.id);
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(strings.documentDeleted(doc.name)),
-                      ),
-                    );
-                    Navigator.pop(context);
-                  },
-                ),
-              ),
-            if (state.ragDocuments.isNotEmpty)
-              FilledButton.tonal(
-                onPressed: () async {
-                  await ref
-                      .read(chatControllerProvider.notifier)
-                      .clearRagDocuments();
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(strings.documentsCleared)),
-                  );
-                  Navigator.pop(context);
-                },
-                child: Text(strings.clearAllDocuments),
-              ),
-          ],
+  String _initialsFromState(ChatState state) {
+    final raw = state.profileName.trim().isNotEmpty
+        ? state.profileName.trim()
+        : state.profileEmail.trim();
+    if (raw.isEmpty) return 'M';
+    final parts = raw.split(RegExp(r'\s+'));
+    String firstChar(String value) {
+      return value.isEmpty ? '' : value.substring(0, 1).toUpperCase();
+    }
+
+    if (parts.length == 1) return firstChar(parts.first);
+    return '${firstChar(parts.first)}${firstChar(parts.last)}';
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    if (date.year == now.year && date.month == now.month && date.day == now.day) {
+      return 'Today';
+    }
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    return '$day/$month';
+  }
+}
+
+class _DrawerNavTile extends StatelessWidget {
+  const _DrawerNavTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.isSelected = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool isSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListTile(
+      onTap: onTap,
+      dense: true,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      tileColor: isSelected
+          ? theme.colorScheme.surfaceContainerHighest
+          : null,
+      leading: Icon(
+        icon,
+        size: 20,
+        color: isSelected
+            ? theme.colorScheme.onSurface
+            : theme.iconTheme.color,
+      ),
+      title: Text(
+        label,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+          color: isSelected
+              ? theme.colorScheme.onSurface
+              : theme.textTheme.bodyMedium?.color,
         ),
+      ),
+    );
+  }
+}
+
+class _ChatTile extends StatelessWidget {
+  const _ChatTile({
+    required this.chat,
+    required this.isSelected,
+    required this.isPinned,
+    required this.subtitle,
+    required this.onTap,
+    required this.onTapDown,
+    required this.onLongPress,
+  });
+
+  final Chat chat;
+  final bool isSelected;
+  final bool isPinned;
+  final String subtitle;
+  final VoidCallback onTap;
+  final GestureTapDownCallback onTapDown;
+  final VoidCallback onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return GestureDetector(
+      onTapDown: onTapDown,
+      child: ListTile(
+        dense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        tileColor: isSelected
+            ? theme.colorScheme.surfaceContainerHighest
+            : null,
+        leading: Icon(
+          isPinned ? Icons.push_pin_rounded : Icons.chat_bubble_outline_rounded,
+          size: 16,
+          color: isPinned ? const Color(0xFFC69A46) : theme.disabledColor,
+        ),
+        title: Text(
+          chat.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        subtitle: Text(
+          subtitle,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: theme.textTheme.bodySmall?.color,
+          ),
+        ),
+        onTap: onTap,
+        onLongPress: onLongPress,
       ),
     );
   }

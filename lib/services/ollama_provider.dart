@@ -1,12 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import '../models/message.dart';
 import 'llm_provider.dart';
 
 class OllamaProvider implements LLMProvider {
-  OllamaProvider({String? baseUrl}) : _baseUrl = baseUrl ?? _defaultBaseUrl();
+  OllamaProvider({String? baseUrl})
+    : _baseUrl = _resolveBaseUrl(baseUrl: baseUrl);
 
   final String _baseUrl;
 
@@ -55,6 +57,16 @@ class OllamaProvider implements LLMProvider {
     return "http://localhost:11434/api/chat";
   }
 
+  static String _resolveBaseUrl({String? baseUrl}) {
+    final explicit = (baseUrl ?? '').trim();
+    if (explicit.isNotEmpty) return explicit;
+
+    final envValue = (dotenv.env['OLLAMA_BASE_URL'] ?? '').trim();
+    if (envValue.isNotEmpty) return envValue;
+
+    return _defaultBaseUrl();
+  }
+
   @override
   Future<String> sendMessage({
     required String modelId,
@@ -80,10 +92,14 @@ class OllamaProvider implements LLMProvider {
         }),
       );
 
+      if (response.statusCode >= 400) {
+        return _errorMessage(response.statusCode);
+      }
+
       final data = jsonDecode(response.body);
       return data["message"]?["content"] ?? "Errore: risposta vuota da Ollama.";
-    } catch (e) {
-      return "Errore Ollama: $e";
+    } catch (_) {
+      return _connectionErrorMessage();
     }
   }
 
@@ -113,6 +129,10 @@ class OllamaProvider implements LLMProvider {
 
       client = http.Client();
       final streamed = await client.send(request);
+      if (streamed.statusCode >= 400) {
+        yield _errorMessage(streamed.statusCode);
+        return;
+      }
       final buffer = StringBuffer();
       await for (final chunk in streamed.stream) {
         buffer.write(utf8.decode(chunk));
@@ -135,8 +155,8 @@ class OllamaProvider implements LLMProvider {
           }
         }
       }
-    } catch (e) {
-      yield "Errore Ollama: $e";
+    } catch (_) {
+      yield _connectionErrorMessage();
     } finally {
       client?.close();
     }
@@ -176,5 +196,13 @@ class OllamaProvider implements LLMProvider {
     final prompt = config.systemPrompt.trim();
     if (prompt.isEmpty) return LLMRequestConfig.defaults.systemPrompt;
     return prompt;
+  }
+
+  String _errorMessage(int statusCode) {
+    return 'Errore Ollama ($statusCode). Controlla che il server locale sia attivo e che OLLAMA_BASE_URL punti all\'host corretto.';
+  }
+
+  String _connectionErrorMessage() {
+    return 'Errore Ollama: server non raggiungibile. Su emulatore Android usa 10.0.2.2; su telefono fisico imposta OLLAMA_BASE_URL con l\'IP locale del PC, ad esempio http://192.168.1.10:11434/api/chat.';
   }
 }

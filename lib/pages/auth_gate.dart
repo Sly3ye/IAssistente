@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../l10n/app_strings.dart';
@@ -11,6 +13,14 @@ class AuthGate extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.listen(authStateProvider, (_, next) {
+      next.whenData((_) {
+        unawaited(
+          ref.read(chatControllerProvider.notifier).handleAuthStateChanged(),
+        );
+      });
+    });
+
     final languageCode = ref.watch(
       chatControllerProvider.select((state) => state.preferredLanguageCode),
     );

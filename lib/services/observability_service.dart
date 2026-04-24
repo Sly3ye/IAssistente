@@ -47,7 +47,10 @@ class ObservabilityService {
     Map<String, Object> parameters = const {},
   }) async {
     if (_analytics == null) return;
-    await _analytics.logEvent(name: name, parameters: parameters);
+    await _analytics.logEvent(
+      name: name,
+      parameters: _sanitizeAnalyticsParameters(parameters),
+    );
   }
 
   Future<void> recordProviderResult({
@@ -78,5 +81,25 @@ class ObservabilityService {
       reason: reason,
       fatal: fatal,
     );
+  }
+
+  Map<String, Object> _sanitizeAnalyticsParameters(
+    Map<String, Object> parameters,
+  ) {
+    final sanitized = <String, Object>{};
+
+    parameters.forEach((key, value) {
+      if (value is String || value is num) {
+        sanitized[key] = value;
+        return;
+      }
+      if (value is bool) {
+        sanitized[key] = value ? 1 : 0;
+        return;
+      }
+      sanitized[key] = value.toString();
+    });
+
+    return sanitized;
   }
 }

@@ -64,6 +64,8 @@ class AttachmentExtractionService {
     );
   }
 
+  bool isImageFile(String fileName) => _isImageExtension(_extension(fileName));
+
   Future<String> _readText({String? filePath, Uint8List? bytes}) async {
     if (bytes != null) {
       return String.fromCharCodes(bytes);

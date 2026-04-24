@@ -142,6 +142,16 @@ class ProxyProvider implements LLMProvider {
     try {
       client = http.Client();
       final streamed = await client.send(request);
+      if (streamed.statusCode >= 400) {
+        final errorBody = await streamed.stream.bytesToString();
+        try {
+          final data = jsonDecode(errorBody);
+          yield "Errore Proxy: ${data['error'] ?? streamed.statusCode}";
+        } catch (_) {
+          yield "Errore Proxy: ${errorBody.isEmpty ? streamed.statusCode : errorBody}";
+        }
+        return;
+      }
       final buffer = StringBuffer();
       await for (final chunk in streamed.stream) {
         buffer.write(utf8.decode(chunk));
@@ -187,12 +197,13 @@ class ProxyProvider implements LLMProvider {
           chatId: "title",
           role: "user",
           content:
-              "Genera un titolo molto breve (max 4 parole) per questo contenuto: $firstMessage",
+              "Genera solo un titolo naturale di 3-5 parole per una chat. Usa il tema concreto emerso nella prima risposta, non riformulare la richiesta generica dell’utente. Evita titoli vaghi come dimmi qualcosa interessante. Niente virgolette, niente emoji, niente punteggiatura finale. Contenuto: $firstMessage",
           createdAt: DateTime.now(),
         ),
       ],
       config: const LLMRequestConfig(
-        systemPrompt: "Genera solo titoli brevi, senza punteggiatura finale.",
+        systemPrompt:
+            "Genera solo titoli brevi e concreti, senza punteggiatura finale.",
         temperature: 0.2,
         maxTokens: 20,
         topP: 1.0,

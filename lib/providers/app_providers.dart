@@ -15,7 +15,7 @@ import '../services/monetization_service.dart';
 import '../services/observability_service.dart';
 import '../services/anthropic_provider.dart';
 import '../services/gemini_provider.dart';
-import '../services/ollama_provider.dart';
+import '../services/groq_provider.dart';
 import '../services/openai_provider.dart';
 import '../services/proxy_provider.dart';
 
@@ -31,11 +31,11 @@ final chatRepositoryProvider = Provider<ChatRepository>((ref) {
 
 final llmRegistryProvider = Provider<LLMRegistry>((ref) {
   return LLMRegistry([
+    GroqProvider(),
     ProxyProvider(),
     OpenAIProvider(),
     AnthropicProvider(),
     GeminiProvider(),
-    OllamaProvider(),
   ]);
 });
 

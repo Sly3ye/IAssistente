@@ -143,6 +143,16 @@ class OpenAIProvider implements LLMProvider {
     try {
       client = http.Client();
       final streamed = await client.send(request);
+      if (streamed.statusCode >= 400) {
+        final errorBody = await streamed.stream.bytesToString();
+        try {
+          final data = jsonDecode(errorBody);
+          yield "Errore OpenAI: ${data['error']?['message'] ?? streamed.statusCode}";
+        } catch (_) {
+          yield "Errore OpenAI: ${errorBody.isEmpty ? streamed.statusCode : errorBody}";
+        }
+        return;
+      }
       final buffer = StringBuffer();
       await for (final chunk in streamed.stream) {
         buffer.write(utf8.decode(chunk));
@@ -193,7 +203,7 @@ class OpenAIProvider implements LLMProvider {
             {
               "role": "system",
               "content":
-                  "Genera un titolo molto breve (max 4 parole) per questo contenuto.",
+                  "Genera solo un titolo naturale di 3-5 parole per una chat. Usa il tema concreto emerso nella prima risposta, non riformulare la richiesta generica dell’utente. Evita titoli vaghi come \"dimmi qualcosa interessante\". Niente virgolette, niente emoji, niente punteggiatura finale.",
             },
             {"role": "user", "content": firstMessage},
           ],

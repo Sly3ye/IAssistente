@@ -18,7 +18,7 @@ class AppRuntimeConfig {
       premiumDailyTokenLimit = 100000,
       adTriggerStep = 5000,
       rewardedTokenBonus = 2500,
-      defaultProviderId = 'ollama',
+      defaultProviderId = 'groq',
       onboardingEnabled = true,
       paywallEnabled = true,
       adsEnabled = true;
@@ -54,7 +54,7 @@ class AppRuntimeConfigService {
         'premium_daily_token_limit': 100000,
         'rewarded_ad_trigger_step': 5000,
         'rewarded_token_bonus': 2500,
-        'default_provider_id': 'ollama',
+        'default_provider_id': 'groq',
         'onboarding_enabled': true,
         'paywall_enabled': true,
         'ads_enabled': true,

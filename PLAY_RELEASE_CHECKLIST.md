@@ -1,7 +1,7 @@
 # Google Play Release Runbook (Checkbox + Owner)
 
 Scope: deploy su Google Play (Android).  
-Date context: 2026-04-03.
+Date context: 2026-04-07.
 
 Legenda owner:
 - `[TU]` task da fare da console/credenziali/release account.
@@ -27,31 +27,31 @@ Legenda priorita:
 - [x] `[TU]` In Firebase Console creare/aggiornare app Android con package definitivo.
 - [x] `[TU]` Scaricare e sostituire [android/app/google-services.json](android/app/google-services.json).
 - [x] `[TU+CODEX]` Rigenerare/allineare [lib/firebase_options.dart](lib/firebase_options.dart) (`flutterfire configure` o allineamento manuale ai nuovi app id Firebase).
-- [ ] `[TU]` In `.env` impostare `APP_ENV=production`.
-- [ ] `[TU]` In `.env` impostare `DEV_BYPASS_AUTH=false`.
-- [ ] `[TU]` In `.env` impostare `ALLOW_CLIENT_SIDE_LLM_IN_PRODUCTION=false`.
-- [ ] `[TU]` In `.env` lasciare vuote `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` lato client.
-- [ ] `[TU]` Impostare `LLM_PROXY_URL` su endpoint HTTPS pubblico.
-- [ ] `[TU]` Impostare `LLM_PROXY_PROVIDER` coerente con backend.
-- [ ] `[TU]` Impostare `LLM_PROXY_AUTH_TOKEN` lato client se il proxy richiede bearer.
-- [ ] `[TU]` Deploy proxy production con HTTPS, dominio, restart policy, monitoring.
-- [ ] `[TU]` Configurare backend env: `OPENAI_API_KEY` o `ANTHROPIC_API_KEY` o `GEMINI_API_KEY`.
-- [ ] `[TU]` Configurare backend env: `PROXY_AUTH_TOKEN`, `PROXY_ALLOWED_ORIGIN`, `RATE_LIMIT_PER_MINUTE`.
-- [ ] `[TU]` Verificare proxy `GET /health`.
-- [ ] `[TU]` Verificare proxy `GET /v1/models`.
+- [x] `[TU]` In `.env` impostare `APP_ENV=production`.
+- [x] `[TU]` In `.env` impostare `DEV_BYPASS_AUTH=false`.
+- [x] `[TU]` In `.env` impostare `ALLOW_CLIENT_SIDE_LLM_IN_PRODUCTION=false`.
+- [x] `[TU]` In `.env` lasciare vuote `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` lato client.
+- [x] `[TU]` Impostare `LLM_PROXY_URL` su endpoint HTTPS pubblico.
+- [x] `[TU]` Impostare `LLM_PROXY_PROVIDER` coerente con backend.
+- [x] `[TU]` Impostare `LLM_PROXY_AUTH_TOKEN` lato client se il proxy richiede bearer.
+- [x] `[TU]` Deploy proxy production con HTTPS, dominio, restart policy, monitoring.
+- [x] `[TU]` Configurare backend env: `OPENAI_API_KEY` o `ANTHROPIC_API_KEY` o `GEMINI_API_KEY`.
+- [x] `[TU]` Configurare backend env: `PROXY_AUTH_TOKEN`, `PROXY_ALLOWED_ORIGIN`, `RATE_LIMIT_PER_MINUTE`.
+- [x] `[TU]` Verificare proxy `GET /health`.
+- [x] `[TU]` Verificare proxy `GET /v1/models`.
 - [ ] `[TU]` Verificare proxy `POST /v1/chat` in modalita stream e non-stream.
-- [ ] `[TU]` Creare keystore release e conservarla in sicurezza.
-- [ ] `[TU]` Creare file locale `keystore.properties` da [keystore.properties.example](keystore.properties.example) (non committare).
-- [ ] `[TU]` Estrarre SHA-1/SHA-256 upload key con `keytool`.
-- [ ] `[TU]` Inserire SHA upload key in Firebase app Android.
-- [ ] `[TU]` Dopo primo upload, recuperare SHA App Signing key da Play Console.
-- [ ] `[TU]` Inserire anche SHA App Signing key in Firebase.
-- [ ] `[TU]` Verificare requisito target API Play corrente (nuove app: Android 15 / API 35 o successivo requisito vigente).
+- [x] `[TU]` Creare keystore release e conservarla in sicurezza.
+- [x] `[TU]` Creare file locale `keystore.properties` da [keystore.properties.example](keystore.properties.example) (non committare).
+- [x] `[TU]` Estrarre SHA-1/SHA-256 upload key con `keytool`.
+- [x] `[TU]` Inserire SHA upload key in Firebase app Android.
+- [x] `[TU]` Dopo primo upload, recuperare SHA App Signing key da Play Console.
+- [x] `[TU]` Inserire anche SHA App Signing key in Firebase.
+- [x] `[TU]` Verificare requisito target API Play corrente (nuove app: Android 15 / API 35 o successivo requisito vigente).
 - [x] `[CODEX]` Verificare `flutter analyze` verde.
 - [x] `[CODEX]` Verificare `flutter test -r compact` verde con `NO_PROXY=localhost,127.0.0.1,::1`.
-- [ ] `[TU]` Verificare login Firebase reale su device (email/password, Google se abilitato).
-- [ ] `[TU]` Build AAB release: `flutter build appbundle --release`.
-- [ ] `[TU]` Verificare output AAB in `build/app/outputs/bundle/release/`.
+- [x] `[TU]` Verificare login Firebase reale su device (email/password, Google se abilitato).
+- [x] `[TU]` Build AAB release: `flutter build appbundle --release`.
+- [x] `[TU]` Verificare output AAB in `build/app/outputs/bundle/release/`.
 
 Done criteria P0:
 Upload AAB possibile senza placeholder tecnici, auth e chat funzionanti su build release firmata.
@@ -60,16 +60,16 @@ Upload AAB possibile senza placeholder tecnici, auth e chat funzionanti su build
 
 ## P0 - Play Console obbligatorio per review
 
-- [ ] `[TU]` Creare app su Play Console con package definitivo.
-- [ ] `[TU]` Compilare store listing principale (nome, short/full description, icona, feature graphic, screenshot phone).
-- [ ] `[TU]` Inserire email supporto (e sito/telefono se richiesti).
-- [ ] `[TU]` Inserire URL Privacy Policy pubblico.
-- [ ] `[TU]` Compilare `App access` con credenziali review valide e istruzioni precise.
-- [ ] `[TU]` Compilare dichiarazione `Ads` se ads attive.
-- [ ] `[TU]` Compilare `Data safety` coerente con comportamento reale app.
-- [ ] `[TU]` Compilare `Target audience`.
-- [ ] `[TU]` Compilare `Content rating`.
-- [ ] `[TU]` Compilare eventuali dichiarazioni specifiche applicabili (News, Health, Financial, ecc.).
+- [x] `[TU]` Creare app su Play Console con package definitivo.
+- [x] `[TU]` Compilare store listing principale (nome, short/full description, icona, feature graphic, screenshot phone).
+- [x] `[TU]` Inserire email supporto (e sito/telefono se richiesti).
+- [x] `[TU]` Inserire URL Privacy Policy pubblico.
+- [x] `[TU]` Compilare `App access` con credenziali review valide e istruzioni precise.
+- [x] `[TU]` Compilare dichiarazione `Ads` se ads attive.
+- [x] `[TU]` Compilare `Data safety` coerente con comportamento reale app.
+- [x] `[TU]` Compilare `Target audience`.
+- [x] `[TU]` Compilare `Content rating`.
+- [x] `[TU]` Compilare eventuali dichiarazioni specifiche applicabili (News, Health, Financial, ecc.).
 - [ ] `[TU]` Se l'app consente creazione account in-app, completare sezione account deletion secondo policy Play.
 
 Done criteria Play content:
@@ -83,7 +83,7 @@ Sezione `App content` e `Store presence` senza task pendenti bloccanti.
 - [ ] `[TU]` Allineare `.env` con `IAP_PREMIUM_MONTHLY`, `IAP_PREMIUM_YEARLY`, `IAP_PREMIUM_LIFETIME`.
 - [ ] `[TU]` Configurare AdMob app ID Android reale.
 - [ ] `[TU]` Configurare AdMob banner/rewarded unit ID Android reali.
-- [ ] `[TU]` Caricare AAB su `Internal testing`.
+- [x] `[TU]` Caricare AAB su `Internal testing`.
 - [ ] `[TU]` Invitare tester interni.
 - [ ] `[TU]` Verificare acquisto e restore in ambiente test.
 - [ ] `[TU]` Verificare premium entitlement in app dopo acquisto/restore.

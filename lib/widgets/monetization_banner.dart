@@ -12,8 +12,12 @@ class MonetizationBanner extends ConsumerWidget {
     final chatState = ref.watch(chatControllerProvider);
     final monetization = ref.watch(monetizationServiceProvider);
     final banner = monetization.bannerAd;
+    final keyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
 
-    if (!chatState.adsConsent || chatState.isPremium || banner == null) {
+    if (!chatState.adsConsent ||
+        chatState.isPremium ||
+        banner == null ||
+        keyboardOpen) {
       return const SizedBox.shrink();
     }
 

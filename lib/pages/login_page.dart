@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../l10n/app_strings.dart';
 import '../providers/app_providers.dart';
 
@@ -15,6 +16,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final passwordController = TextEditingController();
   bool isRegister = false;
   bool isLoading = false;
+  bool passwordVisible = false;
   String? errorText;
 
   @override
@@ -31,8 +33,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     });
     try {
       await action();
-    } catch (e) {
-      setState(() => errorText = e.toString());
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => errorText = error.toString());
     } finally {
       if (mounted) {
         setState(() => isLoading = false);
@@ -50,17 +53,23 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       setState(() => errorText = strings.enterEmailAndPassword);
       return;
     }
+
     final auth = ref.read(authServiceProvider);
+    final chatController = ref.read(chatControllerProvider.notifier);
     await _withLoading(() async {
       if (isRegister) {
         await auth.registerWithEmail(email: email, password: password);
         await auth.sendCurrentEmailVerification();
-        await ref.read(observabilityServiceProvider).logEvent(
-          'auth_register_email',
-        );
+        await chatController.handleAuthStateChanged();
+        await ref
+            .read(observabilityServiceProvider)
+            .logEvent('auth_register_email');
       } else {
         await auth.signInWithEmail(email: email, password: password);
-        await ref.read(observabilityServiceProvider).logEvent('auth_login_email');
+        await chatController.handleAuthStateChanged();
+        await ref
+            .read(observabilityServiceProvider)
+            .logEvent('auth_login_email');
       }
     });
   }
@@ -93,22 +102,96 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   Future<void> _signInGoogle() async {
     final auth = ref.read(authServiceProvider);
+    final chatController = ref.read(chatControllerProvider.notifier);
     await _withLoading(() async {
       await auth.signInWithGoogle();
-      await ref.read(observabilityServiceProvider).logEvent(
-        'auth_login_google',
-      );
+      await chatController.handleAuthStateChanged();
+      await ref.read(observabilityServiceProvider).logEvent('auth_login_google');
     });
   }
 
   Future<void> _signInApple() async {
     final auth = ref.read(authServiceProvider);
+    final chatController = ref.read(chatControllerProvider.notifier);
     await _withLoading(() async {
       await auth.signInWithApple();
-      await ref
-          .read(observabilityServiceProvider)
-          .logEvent('auth_login_apple');
+      await chatController.handleAuthStateChanged();
+      await ref.read(observabilityServiceProvider).logEvent('auth_login_apple');
     });
+  }
+
+  Future<void> _showAlternativeAccess() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFFFDFBF6),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 54,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFD9D2C7),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Alternative access',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Use a federated provider if your workspace is linked externally.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: isLoading
+                        ? null
+                        : () {
+                            Navigator.pop(context);
+                            _signInGoogle();
+                          },
+                    icon: const Icon(Icons.g_mobiledata, size: 26),
+                    label: const Text('Continue with Google'),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: isLoading
+                        ? null
+                        : () {
+                            Navigator.pop(context);
+                            _signInApple();
+                          },
+                    icon: const Icon(Icons.apple, size: 18),
+                    label: const Text('Continue with Apple'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -116,82 +199,236 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final strings = AppStrings.ofCode(
       ref.watch(chatControllerProvider).preferredLanguageCode,
     );
+    final viewInsets = MediaQuery.of(context).viewInsets.bottom;
+    final keyboardOpen = viewInsets > 0;
 
     return Scaffold(
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
-          children: [
-            const SizedBox(height: 24),
-            const Icon(Icons.chat_bubble_outline, size: 56),
-            const SizedBox(height: 12),
-            Text(
-              strings.appTitle,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 24),
-            Text(
-              isRegister ? strings.createAccount : strings.login,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: emailController,
-              keyboardType: TextInputType.emailAddress,
-              decoration: InputDecoration(
-                labelText: strings.email,
-                border: const OutlineInputBorder(),
+      body: Container(
+        color: const Color(0xFFFCF9F2),
+        child: SafeArea(
+          child: ListView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: EdgeInsets.fromLTRB(28, 32, 28, 24 + viewInsets),
+            children: [
+              SizedBox(height: keyboardOpen ? 16 : 72),
+              Text(
+                'Mimir.',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 32,
+                  color: const Color(0xFF182119),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: passwordController,
-              obscureText: true,
-              decoration: InputDecoration(
-                labelText: strings.password,
-                border: const OutlineInputBorder(),
+              SizedBox(height: keyboardOpen ? 24 : 44),
+              Text(
+                isRegister ? strings.createAccount : 'Enter your workspace',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF232920),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            FilledButton(
-              onPressed: isLoading ? null : _submitEmail,
-              child: Text(isRegister ? strings.register : strings.login),
-            ),
-            if (!isRegister)
-              TextButton(
-                onPressed: isLoading ? null : _resetPassword,
-                child: Text(strings.forgotPassword),
+              if (!isRegister && !keyboardOpen) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Use your credentials to access profile, history, settings, and premium controls.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: const Color(0xFF666A63),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 40),
+              _LedgerField(
+                label: 'WORK EMAIL',
+                controller: emailController,
+                icon: Icons.mail_outline_rounded,
+                hintText: 'architect@domain.com',
+                keyboardType: TextInputType.emailAddress,
               ),
-            TextButton(
-              onPressed: isLoading
-                  ? null
-                  : () => setState(() => isRegister = !isRegister),
-              child: Text(
-                isRegister ? strings.alreadyHaveAccount : strings.noAccount,
+              const SizedBox(height: 20),
+              _LedgerField(
+                label: 'PASSCODE',
+                controller: passwordController,
+                icon: Icons.key_rounded,
+                hintText: '........',
+                obscureText: !passwordVisible,
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (!isRegister)
+                      TextButton(
+                        onPressed: isLoading ? null : _resetPassword,
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: const Text('Recover'),
+                      ),
+                    IconButton(
+                      onPressed: () =>
+                          setState(() => passwordVisible = !passwordVisible),
+                      icon: Icon(
+                        passwordVisible
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        size: 18,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            const Divider(),
-            const SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: isLoading ? null : _signInGoogle,
-              icon: const Icon(Icons.g_mobiledata),
-              label: Text(strings.continueWithGoogle),
-            ),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: isLoading ? null : _signInApple,
-              icon: const Icon(Icons.apple),
-              label: Text(strings.continueWithApple),
-            ),
-            if (errorText != null) ...[
-              const SizedBox(height: 16),
-              Text(errorText!, style: const TextStyle(color: Colors.red)),
+              if (errorText != null) ...[
+                const SizedBox(height: 16),
+                Text(
+                  errorText!,
+                  style: const TextStyle(
+                    color: Color(0xFF8E3720),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 28),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: isLoading ? null : _submitEmail,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF0E2D1D),
+                    shadowColor: const Color(0x33000000),
+                    elevation: 6,
+                    minimumSize: const Size.fromHeight(56),
+                  ),
+                  child: isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(isRegister ? strings.register : 'Sign In'),
+                            const SizedBox(width: 8),
+                            const Icon(Icons.arrow_forward_rounded, size: 18),
+                          ],
+                        ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Center(
+                child: TextButton(
+                  onPressed: isLoading
+                      ? null
+                      : () => setState(() => isRegister = !isRegister),
+                  child: Text(
+                    isRegister
+                        ? strings.alreadyHaveAccount
+                        : 'Create an Account',
+                    style: const TextStyle(
+                      color: Color(0xFF595D57),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+              if (!isRegister && !keyboardOpen)
+                Center(
+                  child: TextButton(
+                    onPressed: isLoading ? null : _showAlternativeAccess,
+                    child: const Text(
+                      'Alternative sign-in methods',
+                      style: TextStyle(
+                        color: Color(0xFF767A73),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              SizedBox(height: keyboardOpen ? 28 : 88),
+              Text(
+                'V 2.4.0 • CORE SYSTEM',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: const Color(0xFF8F928B),
+                  letterSpacing: 1.1,
+                ),
+              ),
             ],
-          ],
+          ),
         ),
       ),
+    );
+  }
+}
+
+class _LedgerField extends StatelessWidget {
+  const _LedgerField({
+    required this.label,
+    required this.controller,
+    required this.icon,
+    required this.hintText,
+    this.keyboardType,
+    this.obscureText = false,
+    this.trailing,
+  });
+
+  final String label;
+  final TextEditingController controller;
+  final IconData icon;
+  final String hintText;
+  final TextInputType? keyboardType;
+  final bool obscureText;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: const Color(0xFF666A63),
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.9,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: const BoxDecoration(
+            border: Border(
+              bottom: BorderSide(color: Color(0xFFE0DCCF)),
+            ),
+          ),
+          child: Row(
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: Icon(icon, size: 18, color: const Color(0xFF91958D)),
+              ),
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  keyboardType: keyboardType,
+                  obscureText: obscureText,
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    filled: false,
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(vertical: 12),
+                  ).copyWith(hintText: hintText),
+                ),
+              ),
+              if (trailing != null) trailing!,
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

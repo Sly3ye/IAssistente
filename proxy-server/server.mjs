@@ -147,6 +147,49 @@ async function callOpenAI({ model, messages, config }) {
   return reply;
 }
 
+async function callGroq({ model, messages, config }) {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) {
+    throw new Error('GROQ_API_KEY non configurata sul server proxy.');
+  }
+
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: model || 'llama-3.1-8b-instant',
+      temperature: Number(config?.temperature ?? 0.7),
+      top_p: Number(config?.topP ?? 1.0),
+      max_tokens: Number(config?.maxTokens ?? 1024),
+      messages: [
+        {
+          role: 'system',
+          content:
+            (config?.systemPrompt || '').trim() ||
+            'Sei un assistente AI italiano, educato e conciso.',
+        },
+        ...(Array.isArray(messages) ? messages : []),
+      ],
+    }),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    const message = data?.error?.message || `HTTP ${response.status}`;
+    throw new Error(message);
+  }
+
+  const reply = data?.choices?.[0]?.message?.content?.trim();
+  if (!reply) {
+    throw new Error('Risposta vuota dal provider.');
+  }
+
+  return reply;
+}
+
 async function streamOpenAI({ model, messages, config, res }) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -161,6 +204,70 @@ async function streamOpenAI({ model, messages, config, res }) {
     },
     body: JSON.stringify({
       model: model || 'gpt-4o-mini',
+      stream: true,
+      temperature: Number(config?.temperature ?? 0.7),
+      top_p: Number(config?.topP ?? 1.0),
+      max_tokens: Number(config?.maxTokens ?? 1024),
+      messages: [
+        {
+          role: 'system',
+          content:
+            (config?.systemPrompt || '').trim() ||
+            'Sei un assistente AI italiano, educato e conciso.',
+        },
+        ...(Array.isArray(messages) ? messages : []),
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(errorBody || `HTTP ${response.status}`);
+  }
+
+  let buffer = '';
+  let ended = false;
+  await readWebStream(response.body, async (textChunk) => {
+    if (ended) return;
+    buffer += textChunk;
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('data:')) continue;
+      const dataLine = trimmed.slice(5).trim();
+      if (dataLine === '[DONE]') {
+        ended = true;
+        sendSseDone(res);
+        return;
+      }
+      const json = JSON.parse(dataLine);
+      const delta = json?.choices?.[0]?.delta?.content;
+      if (typeof delta === 'string' && delta.length > 0) {
+        sendSseData(res, { delta });
+      }
+    }
+  });
+
+  if (!ended) {
+    sendSseDone(res);
+  }
+}
+
+async function streamGroq({ model, messages, config, res }) {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) {
+    throw new Error('GROQ_API_KEY non configurata sul server proxy.');
+  }
+
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: model || 'llama-3.1-8b-instant',
       stream: true,
       temperature: Number(config?.temperature ?? 0.7),
       top_p: Number(config?.topP ?? 1.0),
@@ -473,6 +580,14 @@ function advertisedModels() {
       { id: 'gpt-4o', label: 'gpt-4o (OpenAI)' },
     );
   }
+  if (process.env.GROQ_API_KEY) {
+    models.push(
+      { id: 'llama-3.1-8b-instant', label: 'llama-3.1-8b-instant (Groq)' },
+      { id: 'llama-3.3-70b-versatile', label: 'llama-3.3-70b-versatile (Groq)' },
+      { id: 'qwen/qwen3-32b', label: 'qwen/qwen3-32b (Groq)' },
+      { id: 'openai/gpt-oss-120b', label: 'openai/gpt-oss-120b (Groq)' },
+    );
+  }
   if (process.env.ANTHROPIC_API_KEY) {
     models.push(
       {
@@ -502,6 +617,7 @@ function advertisedModels() {
 function logStartupStatus() {
   const availableProviders = [
     process.env.OPENAI_API_KEY ? 'openai' : null,
+    process.env.GROQ_API_KEY ? 'groq' : null,
     process.env.ANTHROPIC_API_KEY ? 'anthropic' : null,
     process.env.GEMINI_API_KEY ? 'gemini' : null,
   ].filter(Boolean);
@@ -570,6 +686,8 @@ const server = http.createServer(async (req, res) => {
       startSse(res);
       if (provider === 'openai') {
         await streamOpenAI({ ...body, res });
+      } else if (provider === 'groq') {
+        await streamGroq({ ...body, res });
       } else if (provider === 'anthropic' || provider === 'claude') {
         await streamAnthropic({ ...body, res });
       } else if (provider === 'gemini') {
@@ -577,7 +695,7 @@ const server = http.createServer(async (req, res) => {
       } else {
         sendSseData(res, {
           error:
-            'Provider non supportato da questo proxy: usa openai, anthropic o gemini.',
+            'Provider non supportato da questo proxy: usa openai, groq, anthropic o gemini.',
         });
         sendSseDone(res);
       }
@@ -587,6 +705,8 @@ const server = http.createServer(async (req, res) => {
     let reply;
     if (provider === 'openai') {
       reply = await callOpenAI(body);
+    } else if (provider === 'groq') {
+      reply = await callGroq(body);
     } else if (provider === 'anthropic' || provider === 'claude') {
       reply = await callAnthropic(body);
     } else if (provider === 'gemini') {
@@ -594,7 +714,7 @@ const server = http.createServer(async (req, res) => {
     } else {
       sendJson(res, 400, {
         error:
-          'Provider non supportato da questo proxy: usa openai, anthropic o gemini.',
+          'Provider non supportato da questo proxy: usa openai, groq, anthropic o gemini.',
       });
       return;
     }

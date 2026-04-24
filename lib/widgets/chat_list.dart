@@ -11,6 +11,7 @@ class ChatList extends ConsumerWidget {
   final bool isSending;
   final String streamingText;
   final List<String> latestAssistantSources;
+  final ValueChanged<Message>? onReadAloud;
 
   const ChatList({
     super.key,
@@ -19,6 +20,7 @@ class ChatList extends ConsumerWidget {
     required this.isSending,
     required this.streamingText,
     required this.latestAssistantSources,
+    this.onReadAloud,
   });
 
   @override
@@ -26,6 +28,8 @@ class ChatList extends ConsumerWidget {
     final strings = AppStrings.ofCode(
       ref.watch(chatControllerProvider).preferredLanguageCode,
     );
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     if (messages.isEmpty && !isSending && streamingText.isEmpty) {
       return Center(
@@ -35,22 +39,26 @@ class ChatList extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 64,
-                height: 64,
+                width: 84,
+                height: 84,
                 decoration: BoxDecoration(
-                  color: Colors.indigo.shade50,
-                  shape: BoxShape.circle,
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF12322D), Color(0xFF1D6C60)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(28),
                 ),
-                child: Icon(
-                  Icons.chat_bubble_outline,
-                  color: Colors.indigo.shade300,
-                  size: 30,
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: Color(0xFFF7E1B5),
+                  size: 36,
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               Text(
                 strings.startConversation,
-                style: Theme.of(context).textTheme.titleMedium,
+                style: Theme.of(context).textTheme.headlineSmall,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
@@ -58,6 +66,27 @@ class ChatList extends ConsumerWidget {
                 strings.realtimeReplyHint,
                 style: Theme.of(context).textTheme.bodyMedium,
                 textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 18),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1D2523) : const Color(0xFFFFFBF4),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: theme.dividerColor),
+                ),
+                child: Text(
+                  'Chat, allegati, cronologia e impostazioni nello stesso spazio.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: isDark
+                        ? const Color(0xFFDCE7E2)
+                        : theme.textTheme.bodySmall?.color,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
               ),
             ],
           ),
@@ -107,6 +136,10 @@ class ChatList extends ConsumerWidget {
           retryTooltip: strings.retry,
           editTooltip: strings.edit,
           copyTooltip: strings.copy,
+          readAloudTooltip: strings.pick(
+            it: 'Leggi risposta',
+            en: 'Read reply',
+          ),
           copiedMessage: strings.textCopied,
           sourcesTitle:
               message.role == "assistant" &&
@@ -130,6 +163,10 @@ class ChatList extends ConsumerWidget {
               ? () => ref
                     .read(chatControllerProvider.notifier)
                     .retryFromAssistant(message)
+              : null,
+          onReadAloud:
+              message.role == "assistant" && !message.isStreaming && onReadAloud != null
+              ? () => onReadAloud!(message)
               : null,
         );
       },
