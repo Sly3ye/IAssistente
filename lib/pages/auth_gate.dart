@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../l10n/app_strings.dart';
 import '../providers/app_providers.dart';
 import '../services/dev_options.dart';
-import 'chat_page.dart';
+import 'home_page.dart';
 import 'login_page.dart';
 
 class AuthGate extends ConsumerWidget {
@@ -26,7 +26,7 @@ class AuthGate extends ConsumerWidget {
     );
     final strings = AppStrings.ofCode(languageCode);
     if (DevOptions.authBypassEnabled) {
-      return const ChatPage();
+      return const HomePage();
     }
 
     final authState = ref.watch(authStateProvider);
@@ -34,7 +34,7 @@ class AuthGate extends ConsumerWidget {
     return authState.when(
       data: (user) {
         if (user == null) return const LoginPage();
-        return const ChatPage();
+        return const HomePage();
       },
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),

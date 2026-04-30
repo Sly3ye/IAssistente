@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/chat.dart';
 import '../models/legal_profile.dart';
 import '../providers/app_providers.dart';
+import '../widgets/agent_disclaimer_banner.dart';
 
 class LegalAgentPage extends ConsumerStatefulWidget {
   const LegalAgentPage({super.key});
@@ -12,6 +14,8 @@ class LegalAgentPage extends ConsumerStatefulWidget {
 }
 
 class _LegalAgentPageState extends ConsumerState<LegalAgentPage> {
+  bool _isStarting = false;
+
   late final TextEditingController _questionController;
   late final TextEditingController _topicController;
   late final TextEditingController _jurisdictionController;
@@ -31,7 +35,9 @@ class _LegalAgentPageState extends ConsumerState<LegalAgentPage> {
     _jurisdictionController = TextEditingController(text: profile.jurisdiction);
     _roleController = TextEditingController(text: profile.userRole);
     _scenarioController = TextEditingController(text: profile.scenario);
-    _documentsController = TextEditingController(text: profile.documentsAvailable);
+    _documentsController = TextEditingController(
+      text: profile.documentsAvailable,
+    );
     _deadlinesController = TextEditingController(text: profile.deadlines);
     _goalController = TextEditingController(text: profile.goal);
     _notesController = TextEditingController(text: profile.notes);
@@ -55,19 +61,34 @@ class _LegalAgentPageState extends ConsumerState<LegalAgentPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(chatControllerProvider);
     final isItalian = state.preferredLanguageCode == 'it';
+    final lastCase = _lastChatForKind(state.chats, Chat.kindLegal);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(isItalian ? 'Avvocato' : 'Lawyer'),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
+      appBar: AppBar(title: Text(isItalian ? 'Avvocato' : 'Lawyer')),
+      body: Column(
         children: [
-          Text(
-            isItalian
-                ? 'Questa sezione e solo informativa. Non sostituisce un avvocato reale e non costituisce consulenza legale.'
-                : 'This section is informational only. It does not replace a real lawyer and does not constitute legal advice.',
+          AgentDisclaimerBanner(
+            text: isItalian
+                ? 'Percorso informativo: compila almeno domanda o scenario. Non sostituisce un avvocato reale e non costituisce consulenza legale.'
+                : 'Informational workflow: fill at least question or scenario. It does not replace a real lawyer and does not constitute legal advice.',
           ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
+              children: [
+          if (lastCase != null) ...[
+            const SizedBox(height: 12),
+            _LastCaseCard(
+              title: isItalian ? 'Ultimo caso legale' : 'Last legal case',
+              chat: lastCase,
+              onTap: () async {
+                await ref
+                    .read(chatControllerProvider.notifier)
+                    .loadChat(lastCase.id);
+                if (context.mounted) Navigator.pop(context);
+              },
+            ),
+          ],
           const SizedBox(height: 16),
           const _AgentSectionTitle(title: 'Caso'),
           TextField(
@@ -96,7 +117,9 @@ class _LegalAgentPageState extends ConsumerState<LegalAgentPage> {
                 child: TextField(
                   controller: _jurisdictionController,
                   decoration: InputDecoration(
-                    labelText: isItalian ? 'Paese o giurisdizione' : 'Country or jurisdiction',
+                    labelText: isItalian
+                        ? 'Paese o giurisdizione'
+                        : 'Country or jurisdiction',
                   ),
                 ),
               ),
@@ -161,6 +184,9 @@ class _LegalAgentPageState extends ConsumerState<LegalAgentPage> {
               labelText: isItalian ? 'Note extra' : 'Extra notes',
             ),
           ),
+              ],
+            ),
+          ),
         ],
       ),
       bottomNavigationBar: SafeArea(
@@ -168,38 +194,95 @@ class _LegalAgentPageState extends ConsumerState<LegalAgentPage> {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           child: FilledButton.icon(
-            onPressed: () async {
-              final messenger = ScaffoldMessenger.of(context);
-              final profile = LegalProfile(
-                primaryQuestion: _questionController.text.trim(),
-                topic: _topicController.text.trim(),
-                jurisdiction: _jurisdictionController.text.trim(),
-                userRole: _roleController.text.trim(),
-                scenario: _scenarioController.text.trim(),
-                documentsAvailable: _documentsController.text.trim(),
-                deadlines: _deadlinesController.text.trim(),
-                goal: _goalController.text.trim(),
-                notes: _notesController.text.trim(),
-              );
-              await ref.read(chatControllerProvider.notifier).startLegalAgent(
-                    profile: profile,
-                  );
-              if (!context.mounted) return;
-              messenger.showSnackBar(
-                SnackBar(
-                  content: Text(
-                    isItalian
-                        ? 'Avvocato pronto nella nuova chat.'
-                        : 'Lawyer ready in the new chat.',
-                  ),
-                ),
-              );
-              Navigator.pop(context);
-            },
-            icon: const Icon(Icons.gavel_rounded),
+            onPressed: _isStarting
+                ? null
+                : () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    if (_questionController.text.trim().isEmpty &&
+                        _scenarioController.text.trim().isEmpty) {
+                      messenger.showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            isItalian
+                                ? 'Inserisci almeno domanda principale o scenario.'
+                                : 'Enter at least the main question or scenario.',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+                    setState(() => _isStarting = true);
+                    try {
+                      final profile = LegalProfile(
+                        primaryQuestion: _questionController.text.trim(),
+                        topic: _topicController.text.trim(),
+                        jurisdiction: _jurisdictionController.text.trim(),
+                        userRole: _roleController.text.trim(),
+                        scenario: _scenarioController.text.trim(),
+                        documentsAvailable: _documentsController.text.trim(),
+                        deadlines: _deadlinesController.text.trim(),
+                        goal: _goalController.text.trim(),
+                        notes: _notesController.text.trim(),
+                      );
+                      await ref
+                          .read(chatControllerProvider.notifier)
+                          .startLegalAgent(profile: profile);
+                      if (!context.mounted) return;
+                      Navigator.pop(context, true);
+                    } catch (_) {
+                      if (!context.mounted) return;
+                      setState(() => _isStarting = false);
+                    }
+                  },
+            icon: _isStarting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.gavel_rounded),
             label: Text(isItalian ? 'Avvia avvocato' : 'Start lawyer'),
           ),
         ),
+      ),
+    );
+  }
+
+  Chat? _lastChatForKind(List<Chat> chats, String kind) {
+    for (final chat in chats) {
+      if (chat.kind == kind) return chat;
+    }
+    return null;
+  }
+}
+
+class _LastCaseCard extends StatelessWidget {
+  const _LastCaseCard({
+    required this.title,
+    required this.chat,
+    required this.onTap,
+  });
+
+  final String title;
+  final Chat chat;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.history_rounded),
+        title: Text(title),
+        subtitle: Text(
+          chat.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: onTap,
       ),
     );
   }
@@ -216,9 +299,9 @@ class _AgentSectionTitle extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 10),
       child: Text(
         title,
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
+        style: Theme.of(
+          context,
+        ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
       ),
     );
   }

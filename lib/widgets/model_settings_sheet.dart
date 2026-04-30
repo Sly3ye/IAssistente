@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/app_strings.dart';
 import '../services/llm_provider.dart';
 
 class TtsVoiceOption {
@@ -16,7 +17,7 @@ class TtsVoiceOption {
   String get id => '$name|$locale';
 }
 
-class ModelSettingsSheet extends StatelessWidget {
+class ModelSettingsSheet extends StatefulWidget {
   const ModelSettingsSheet({
     super.key,
     required this.providers,
@@ -41,6 +42,7 @@ class ModelSettingsSheet extends StatelessWidget {
     required this.systemPrompt,
     required this.ragDocumentsCount,
     required this.openCircuitProviders,
+    required this.languageCode,
     required this.onProviderChanged,
     required this.onModelChanged,
     required this.onAutoFallbackChanged,
@@ -85,6 +87,7 @@ class ModelSettingsSheet extends StatelessWidget {
   final String systemPrompt;
   final int ragDocumentsCount;
   final List<String> openCircuitProviders;
+  final String languageCode;
   final ValueChanged<String> onProviderChanged;
   final ValueChanged<String> onModelChanged;
   final ValueChanged<bool> onAutoFallbackChanged;
@@ -107,15 +110,27 @@ class ModelSettingsSheet extends StatelessWidget {
   final VoidCallback onCloseRequested;
 
   @override
+  State<ModelSettingsSheet> createState() => _ModelSettingsSheetState();
+}
+
+class _ModelSettingsSheetState extends State<ModelSettingsSheet> {
+  final ExpansibleController _providerTileController = ExpansibleController();
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
+    final providers = widget.providers;
+    final models = widget.models;
+    final providerId = widget.providerId;
+    final modelId = widget.modelId;
     final provider = providers.firstWhere((item) => item.id == providerId);
     final currentModel = models.firstWhere(
       (item) => item.id == modelId,
       orElse: () => models.first,
     );
+    final strings = AppStrings.ofCode(widget.languageCode);
 
     return Container(
       margin: EdgeInsets.only(
@@ -152,7 +167,7 @@ class ModelSettingsSheet extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Model Settings',
+                          strings.modelSettingsTitle,
                           style: theme.textTheme.titleLarge?.copyWith(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
@@ -160,7 +175,7 @@ class ModelSettingsSheet extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Configure active provider and operational parameters.',
+                          strings.modelSettingsSubtitle,
                           style: theme.textTheme.bodySmall?.copyWith(
                             fontSize: 13,
                             height: 1.4,
@@ -170,7 +185,7 @@ class ModelSettingsSheet extends StatelessWidget {
                     ),
                   ),
                   IconButton(
-                    onPressed: onCloseRequested,
+                    onPressed: widget.onCloseRequested,
                     icon: const Icon(Icons.close_rounded),
                   ),
                 ],
@@ -180,7 +195,7 @@ class ModelSettingsSheet extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      'ACTIVE MODEL',
+                      strings.activeModelLabel,
                       style: theme.textTheme.labelSmall?.copyWith(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
@@ -188,7 +203,9 @@ class ModelSettingsSheet extends StatelessWidget {
                       ),
                     ),
                   ),
-                  _FlagChip(label: 'Auto-Switch: ${autoFallback ? 'ON' : 'OFF'}'),
+                  _FlagChip(
+                    label: strings.autoSwitchLabel(widget.autoFallback),
+                  ),
                 ],
               ),
               const SizedBox(height: 10),
@@ -200,23 +217,24 @@ class ModelSettingsSheet extends StatelessWidget {
                     subtitle:
                         '${provider.label} • ${_modelDescriptionFor(item.id)}',
                     meta: [
-                      _MetaChip(_contextLabel(maxTokens)),
+                      _MetaChip(_contextLabel(widget.maxTokens, strings)),
                       if (item.id == currentModel.id)
-                        _MetaChip(_speedLabel(temperature)),
+                        _MetaChip(_speedLabel(widget.temperature, strings)),
                     ],
                     selected: item.id == modelId,
-                    onTap: () => onModelChanged(item.id),
+                    onTap: () => widget.onModelChanged(item.id),
                   ),
                 ),
               ExpansionTile(
+                controller: _providerTileController,
                 tilePadding: EdgeInsets.zero,
                 childrenPadding: const EdgeInsets.only(bottom: 14),
-                title: const Text(
-                  'Provider Routing',
-                  style: TextStyle(fontWeight: FontWeight.w700),
+                title: Text(
+                  strings.providerRoutingTitle,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
                 subtitle: Text(
-                  'Current provider: ${provider.label}',
+                  strings.currentProvider(provider.label),
                   style: theme.textTheme.bodySmall,
                 ),
                 children: [
@@ -231,7 +249,8 @@ class ModelSettingsSheet extends StatelessWidget {
                             selectedColor: isDark
                                 ? colorScheme.surfaceContainerHighest
                                 : const Color(0xFFEAE5DA),
-                            onSelected: (_) => onProviderChanged(item.id),
+                            onSelected: (_) =>
+                                widget.onProviderChanged(item.id),
                           ),
                         )
                         .toList(),
@@ -240,7 +259,7 @@ class ModelSettingsSheet extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Text(
-                'REASONING MODE',
+                strings.reasoningModeLabel,
                 style: theme.textTheme.labelSmall?.copyWith(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
@@ -251,28 +270,30 @@ class ModelSettingsSheet extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1F2825) : const Color(0xFFF0ECE3),
+                  color: isDark
+                      ? const Color(0xFF1F2825)
+                      : const Color(0xFFF0ECE3),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
                   children: [
                     Expanded(
                       child: _ModeButton(
-                        label: 'Standard',
-                        selected: maxTokens < 1800,
+                        label: strings.modeStandard,
+                        selected: widget.maxTokens < 1800,
                         onTap: () {
-                          onMaxTokensChanged(1024);
-                          onTemperatureChanged(0.2);
+                          widget.onMaxTokensChanged(1024);
+                          widget.onTemperatureChanged(0.2);
                         },
                       ),
                     ),
                     Expanded(
                       child: _ModeButton(
-                        label: 'Deep',
-                        selected: maxTokens >= 1800,
+                        label: strings.modeDeep,
+                        selected: widget.maxTokens >= 1800,
                         onTap: () {
-                          onMaxTokensChanged(2048);
-                          onTemperatureChanged(0.35);
+                          widget.onMaxTokensChanged(2048);
+                          widget.onTemperatureChanged(0.35);
                         },
                       ),
                     ),
@@ -281,9 +302,9 @@ class ModelSettingsSheet extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               Text(
-                maxTokens >= 1800
-                    ? 'Deep mode increases context and reasoning depth. Latency will increase.'
-                    : 'Standard mode balances speed and reliability for everyday tasks.',
+                widget.maxTokens >= 1800
+                    ? strings.modeDeepDescription
+                    : strings.modeStandardDescription,
                 style: theme.textTheme.bodySmall?.copyWith(
                   fontSize: 13,
                   height: 1.4,
@@ -291,7 +312,7 @@ class ModelSettingsSheet extends StatelessWidget {
               ),
               const SizedBox(height: 18),
               Text(
-                'PARAMETERS',
+                strings.parametersLabel,
                 style: theme.textTheme.labelSmall?.copyWith(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
@@ -301,172 +322,237 @@ class ModelSettingsSheet extends StatelessWidget {
               const SizedBox(height: 10),
               _ToggleRow(
                 icon: Icons.history_toggle_off_rounded,
-                title: 'Cross-Session Memory',
-                subtitle: 'Retain context across conversations',
-                value: memoryEnabled,
-                onChanged: onMemoryChanged,
+                title: strings.crossSessionMemoryTitle,
+                subtitle: strings.crossSessionMemorySubtitle,
+                value: widget.memoryEnabled,
+                onChanged: widget.onMemoryChanged,
               ),
               _ToggleRow(
                 icon: Icons.shield_outlined,
-                title: 'Safety Controls',
-                subtitle: 'Filter risky prompts and unsupported requests',
-                value: strictSafety,
-                onChanged: onStrictSafetyChanged,
+                title: strings.safetyControlsTitle,
+                subtitle: strings.safetyControlsSubtitle,
+                value: widget.strictSafety,
+                onChanged: widget.onStrictSafetyChanged,
               ),
               _ToggleRow(
                 icon: Icons.link_rounded,
-                title: 'Provider Auto-Switch',
-                subtitle: 'Switch model provider automatically when needed',
-                value: autoFallback,
-                onChanged: onAutoFallbackChanged,
+                title: strings.providerAutoSwitchTitle,
+                subtitle: strings.providerAutoSwitchSubtitle,
+                value: widget.autoFallback,
+                onChanged: widget.onAutoFallbackChanged,
               ),
               _ToggleRow(
                 icon: Icons.offline_bolt_rounded,
-                title: 'Offline Preference',
-                subtitle: 'Prefer local-compatible execution paths',
-                value: preferOffline,
-                onChanged: onPreferOfflineChanged,
+                title: strings.offlinePreferenceTitle,
+                subtitle: strings.offlinePreferenceSubtitle,
+                value: widget.preferOffline,
+                onChanged: widget.onPreferOfflineChanged,
               ),
               _ToggleRow(
                 icon: Icons.dataset_linked_outlined,
-                title: 'Local RAG',
-                subtitle: 'Indexed documents: $ragDocumentsCount',
-                value: ragEnabled,
-                onChanged: onRagChanged,
+                title: strings.personalDocumentsTitle,
+                subtitle: strings.indexedDocumentsSubtitle(widget.ragDocumentsCount),
+                value: widget.ragEnabled,
+                onChanged: widget.onRagChanged,
               ),
               _ToggleRow(
                 icon: Icons.dark_mode_outlined,
-                title: 'Night Mode',
-                subtitle: 'Switch to the dark version of the current palette',
-                value: darkModeEnabled,
-                onChanged: onDarkModeChanged,
+                title: strings.nightModeTitle,
+                subtitle: strings.nightModeSubtitle,
+                value: widget.darkModeEnabled,
+                onChanged: widget.onDarkModeChanged,
               ),
               ExpansionTile(
                 tilePadding: EdgeInsets.zero,
                 childrenPadding: const EdgeInsets.only(bottom: 12),
-                title: const Text(
-                  'Voice & Playback',
-                  style: TextStyle(fontWeight: FontWeight.w700),
+                title: Text(
+                  strings.voicePlaybackTitle,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
                 subtitle: Text(
-                  ttsVoices.isEmpty
-                      ? 'Use the device default voice'
-                      : 'Select a TTS voice and tune playback',
+                  widget.ttsVoices.isEmpty
+                      ? strings.voiceDefaultSubtitle
+                      : strings.voiceSelectSubtitle,
                   style: theme.textTheme.bodySmall,
                 ),
                 children: [
                   DropdownButtonFormField<String>(
-                    initialValue: ttsVoices.any((item) => item.id == selectedTtsVoiceId)
-                        ? selectedTtsVoiceId
+                    initialValue: widget.ttsVoices.any(
+                          (item) => item.id == widget.selectedTtsVoiceId,
+                        )
+                        ? widget.selectedTtsVoiceId
                         : '',
-                    decoration: const InputDecoration(
-                      labelText: 'Voice',
-                    ),
+                    decoration: InputDecoration(labelText: strings.voiceDropdownLabel),
                     items: [
-                      const DropdownMenuItem<String>(
+                      DropdownMenuItem<String>(
                         value: '',
-                        child: Text('System default'),
+                        child: Text(strings.voiceSystemDefault),
                       ),
-                      ...ttsVoices.map(
+                      ...widget.ttsVoices.map(
                         (voice) => DropdownMenuItem<String>(
                           value: voice.id,
                           child: Text(voice.label),
                         ),
                       ),
                     ],
-                    onChanged: (value) => onTtsVoiceChanged(value ?? ''),
+                    onChanged: (value) =>
+                        widget.onTtsVoiceChanged(value ?? ''),
                   ),
                   const SizedBox(height: 12),
-                  Text('Speech rate: ${ttsSpeechRate.toStringAsFixed(2)}'),
+                  Text(strings.speechRateLabel(widget.ttsSpeechRate)),
                   Slider(
-                    value: ttsSpeechRate,
+                    value: widget.ttsSpeechRate,
                     min: 0.35,
                     max: 0.65,
                     divisions: 12,
-                    onChanged: onTtsSpeechRateChanged,
+                    onChanged: widget.onTtsSpeechRateChanged,
                   ),
-                  Text('Voice tone: ${ttsPitch.toStringAsFixed(2)}'),
+                  Text(strings.voiceToneLabel(widget.ttsPitch)),
                   Slider(
-                    value: ttsPitch,
+                    value: widget.ttsPitch,
                     min: 0.8,
                     max: 1.2,
                     divisions: 8,
-                    onChanged: onTtsPitchChanged,
+                    onChanged: widget.onTtsPitchChanged,
                   ),
                 ],
               ),
               ExpansionTile(
                 tilePadding: EdgeInsets.zero,
                 childrenPadding: const EdgeInsets.only(bottom: 12),
-                title: const Text(
-                  'Advanced Controls',
-                  style: TextStyle(fontWeight: FontWeight.w700),
+                title: Text(
+                  strings.advancedControlsTitle,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
                 subtitle: Text(
-                  'Temp ${temperature.toStringAsFixed(2)} • Top P ${topP.toStringAsFixed(2)}',
+                  strings.advancedControlsSubtitle(widget.temperature, widget.topP),
                   style: theme.textTheme.bodySmall,
                 ),
                 children: [
                   TextField(
-                    controller: TextEditingController(text: systemPrompt)
+                    controller: TextEditingController(text: widget.systemPrompt)
                       ..selection = TextSelection.fromPosition(
-                        TextPosition(offset: systemPrompt.length),
+                        TextPosition(offset: widget.systemPrompt.length),
                       ),
                     minLines: 2,
                     maxLines: 4,
-                    decoration: const InputDecoration(
-                      hintText: 'Base instructions for the model',
+                    decoration: InputDecoration(
+                      hintText: strings.systemPromptHint,
                     ),
-                    onChanged: onSystemPromptChanged,
+                    onChanged: widget.onSystemPromptChanged,
                   ),
                   const SizedBox(height: 12),
-                  Text('Temperature: ${temperature.toStringAsFixed(2)}'),
+                  Text(strings.temperatureSliderLabel(widget.temperature)),
                   Slider(
-                    value: temperature,
+                    value: widget.temperature,
                     min: 0,
                     max: 1,
                     divisions: 20,
-                    onChanged: onTemperatureChanged,
+                    onChanged: widget.onTemperatureChanged,
                   ),
-                  Text('Top P: ${topP.toStringAsFixed(2)}'),
+                  Text(strings.topPSliderLabel(widget.topP)),
                   Slider(
-                    value: topP,
+                    value: widget.topP,
                     min: 0.1,
                     max: 1,
                     divisions: 18,
-                    onChanged: onTopPChanged,
+                    onChanged: widget.onTopPChanged,
                   ),
-                  Text('Max tokens: $maxTokens'),
+                  Text(strings.maxTokensSliderLabel(widget.maxTokens)),
                   Slider(
-                    value: maxTokens.toDouble(),
+                    value: widget.maxTokens.toDouble(),
                     min: 128,
                     max: 4096,
                     divisions: 62,
-                    onChanged: (value) => onMaxTokensChanged(value.round()),
+                    onChanged: (value) =>
+                        widget.onMaxTokensChanged(value.round()),
                   ),
                   _ToggleRow(
                     icon: Icons.analytics_outlined,
-                    title: 'Analytics Consent',
-                    subtitle: 'Allow diagnostics and product analytics',
-                    value: analyticsConsent,
-                    onChanged: onAnalyticsChanged,
+                    title: strings.analyticsConsentTitle,
+                    subtitle: strings.analyticsConsentSubtitle,
+                    value: widget.analyticsConsent,
+                    onChanged: widget.onAnalyticsChanged,
                   ),
                   _ToggleRow(
                     icon: Icons.campaign_outlined,
-                    title: 'Ads Consent',
-                    subtitle: 'Allow advertising personalization',
-                    value: adsConsent,
-                    onChanged: onAdsChanged,
+                    title: strings.adsConsentTitle,
+                    subtitle: strings.adsConsentSubtitle,
+                    value: widget.adsConsent,
+                    onChanged: widget.onAdsChanged,
                   ),
                 ],
               ),
-              if (openCircuitProviders.isNotEmpty)
+              if (widget.openCircuitProviders.isNotEmpty)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Text(
-                    'Circuit breaker active: ${openCircuitProviders.join(', ')}',
-                    style: TextStyle(
-                      color: isDark ? const Color(0xFFD7B06E) : const Color(0xFF8A5A00),
+                  padding: const EdgeInsets.only(top: 14, bottom: 4),
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? const Color(0xFF2E2210)
+                          : const Color(0xFFFFF3E0),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isDark
+                            ? const Color(0xFF7A5500)
+                            : const Color(0xFFFFB300),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.warning_amber_rounded,
+                              size: 18,
+                              color: isDark
+                                  ? const Color(0xFFD7B06E)
+                                  : const Color(0xFF8A5A00),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                strings.circuitBreakerActive(
+                                  widget.openCircuitProviders,
+                                ),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                  color: isDark
+                                      ? const Color(0xFFD7B06E)
+                                      : const Color(0xFF8A5A00),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          strings.circuitBreakerExplanation(
+                            widget.openCircuitProviders,
+                          ),
+                          style: TextStyle(
+                            fontSize: 13,
+                            height: 1.4,
+                            color: isDark
+                                ? const Color(0xFFB8935A)
+                                : const Color(0xFF6D4700),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton.icon(
+                            onPressed: () =>
+                                _providerTileController.expand(),
+                            icon: const Icon(Icons.swap_horiz_rounded,
+                                size: 18),
+                            label: Text(strings.switchProvider),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -475,18 +561,18 @@ class ModelSettingsSheet extends StatelessWidget {
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: onResetDefaults,
-                      child: const Text('Reset Defaults'),
+                      onPressed: widget.onResetDefaults,
+                      child: Text(strings.resetDefaults),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: FilledButton(
-                      onPressed: onApply,
+                      onPressed: widget.onApply,
                       style: FilledButton.styleFrom(
                         backgroundColor: colorScheme.primary,
                       ),
-                      child: const Text('Apply Settings'),
+                      child: Text(strings.applySettings),
                     ),
                   ),
                 ],
@@ -524,16 +610,16 @@ class ModelSettingsSheet extends StatelessWidget {
     return 'Balanced performance for everyday tasks, drafting, and general queries.';
   }
 
-  String _contextLabel(int maxTokens) {
-    if (maxTokens >= 4096) return 'Long Context';
-    if (maxTokens >= 2048) return 'Expanded Context';
-    return 'Standard Context';
+  String _contextLabel(int maxTokens, AppStrings strings) {
+    if (maxTokens >= 4096) return strings.longContext;
+    if (maxTokens >= 2048) return strings.expandedContext;
+    return strings.standardContext;
   }
 
-  String _speedLabel(double temperature) {
-    if (temperature <= 0.2) return 'Fastest';
-    if (temperature <= 0.45) return 'Balanced';
-    return 'Creative';
+  String _speedLabel(double temperature, AppStrings strings) {
+    if (temperature <= 0.2) return strings.speedFastest;
+    if (temperature <= 0.45) return strings.speedBalanced;
+    return strings.speedCreative;
   }
 }
 

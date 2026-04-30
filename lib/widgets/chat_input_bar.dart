@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import 'dart:typed_data';
 
+enum AttachmentExtractionState { extracting, done, failed }
+
 class AttachmentPreviewItem {
   const AttachmentPreviewItem({
     required this.label,
     this.kind,
     this.subtitle,
+    this.extractionState,
     this.previewPath,
     this.previewBytes,
     this.onRemove,
@@ -15,6 +18,7 @@ class AttachmentPreviewItem {
   final String? kind;
   final String label;
   final String? subtitle;
+  final AttachmentExtractionState? extractionState;
   final String? previewPath;
   final Uint8List? previewBytes;
   final VoidCallback? onRemove;
@@ -84,9 +88,7 @@ class ChatInputBar extends StatelessWidget {
           border: Border.all(color: theme.dividerColor),
           boxShadow: [
             BoxShadow(
-              color: isDark
-                  ? const Color(0x66000000)
-                  : const Color(0x12000000),
+              color: isDark ? const Color(0x66000000) : const Color(0x12000000),
               blurRadius: 18,
               offset: Offset(0, 8),
             ),
@@ -106,12 +108,15 @@ class ChatInputBar extends StatelessWidget {
                     separatorBuilder: (_, __) => const SizedBox(width: 8),
                     itemBuilder: (context, index) {
                       final item = attachments[index];
+                      final chipWidth = (MediaQuery.of(context).size.width - 64)
+                          .clamp(160.0, 220.0);
                       return SizedBox(
-                        width: 220,
+                        width: chipWidth,
                         child: _AttachmentChip(
                           kind: item.kind,
                           label: item.label,
                           subtitle: item.subtitle,
+                          extractionState: item.extractionState,
                           previewPath: item.previewPath,
                           previewBytes: item.previewBytes,
                           onRemove: item.onRemove,
@@ -147,17 +152,16 @@ class ChatInputBar extends StatelessWidget {
                         horizontal: 6,
                         vertical: keyboardOpen ? 8 : 12,
                       ),
-                    ).copyWith(
-                      hintText: hintText,
-                    ),
+                    ).copyWith(hintText: hintText),
                   ),
                 ),
                 SizedBox(width: keyboardOpen ? 6 : 8),
                 _MicActionDock(
                   tooltip: isListening ? stopMicTooltip : micTooltip,
                   onPressed: isSending ? null : onMic,
-                  icon:
-                      isListening ? Icons.mic_rounded : Icons.mic_none_rounded,
+                  icon: isListening
+                      ? Icons.mic_rounded
+                      : Icons.mic_none_rounded,
                   foregroundColor: isListening
                       ? (isDark
                             ? const Color(0xFF9FD9CB)
@@ -188,7 +192,9 @@ class ChatInputBar extends StatelessWidget {
                   ),
                   child: IconButton(
                     icon: Icon(
-                      isSending ? Icons.stop_rounded : Icons.arrow_upward_rounded,
+                      isSending
+                          ? Icons.stop_rounded
+                          : Icons.arrow_upward_rounded,
                       color: isDark ? const Color(0xFF071310) : Colors.white,
                     ),
                     onPressed: isSending ? onCancel : onSend,
@@ -315,6 +321,7 @@ class _AttachmentChip extends StatelessWidget {
     this.kind,
     required this.label,
     this.subtitle,
+    this.extractionState,
     this.previewPath,
     this.previewBytes,
     this.onRemove,
@@ -323,6 +330,7 @@ class _AttachmentChip extends StatelessWidget {
   final String? kind;
   final String label;
   final String? subtitle;
+  final AttachmentExtractionState? extractionState;
   final String? previewPath;
   final Uint8List? previewBytes;
   final VoidCallback? onRemove;
@@ -402,14 +410,17 @@ class _AttachmentChip extends StatelessWidget {
                     subtitle!,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 12,
-                    ),
+                    style: const TextStyle(fontSize: 12),
                   ),
                 ],
               ],
             ),
           ),
+          if (extractionState != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: _extractionIcon(extractionState!),
+            ),
           if (onRemove != null)
             IconButton(
               onPressed: onRemove,
@@ -419,6 +430,21 @@ class _AttachmentChip extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Widget _extractionIcon(AttachmentExtractionState state) {
+    switch (state) {
+      case AttachmentExtractionState.extracting:
+        return const SizedBox(
+          width: 14,
+          height: 14,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        );
+      case AttachmentExtractionState.done:
+        return const Icon(Icons.check_circle_outline_rounded, size: 16, color: Color(0xFF2E7D32));
+      case AttachmentExtractionState.failed:
+        return const Icon(Icons.error_outline_rounded, size: 16, color: Color(0xFFC62828));
+    }
   }
 }
 
@@ -443,21 +469,27 @@ class _ActionDock extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: backgroundColor ??
-            (isDark ? const Color(0xFF202927) : const Color(0xFFF3ECE0)),
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
+    return Semantics(
+      button: true,
+      enabled: onPressed != null,
+      label: tooltip,
+      child: Tooltip(
+        message: tooltip,
+        child: Material(
+          color:
+              backgroundColor ??
+              (isDark ? const Color(0xFF202927) : const Color(0xFFF3ECE0)),
           borderRadius: BorderRadius.circular(16),
-          onTap: onPressed,
-          child: SizedBox(
-            width: size,
-            height: size,
-            child: Icon(
-              icon,
-              color: foregroundColor ?? theme.iconTheme.color,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: onPressed,
+            child: SizedBox(
+              width: size,
+              height: size,
+              child: Icon(
+                icon,
+                color: foregroundColor ?? theme.iconTheme.color,
+              ),
             ),
           ),
         ),

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/chat.dart';
 import '../models/medical_profile.dart';
 import '../providers/app_providers.dart';
+import '../widgets/agent_disclaimer_banner.dart';
 
 class MedicalAgentPage extends ConsumerStatefulWidget {
   const MedicalAgentPage({super.key});
@@ -12,6 +14,8 @@ class MedicalAgentPage extends ConsumerStatefulWidget {
 }
 
 class _MedicalAgentPageState extends ConsumerState<MedicalAgentPage> {
+  bool _isStarting = false;
+
   late final TextEditingController _questionController;
   late final TextEditingController _ageController;
   late final TextEditingController _sexController;
@@ -58,19 +62,36 @@ class _MedicalAgentPageState extends ConsumerState<MedicalAgentPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(chatControllerProvider);
     final isItalian = state.preferredLanguageCode == 'it';
+    final lastCase = _lastChatForKind(state.chats, Chat.kindMedical);
 
     return Scaffold(
       appBar: AppBar(
         title: Text(isItalian ? 'Medico di base' : 'General practitioner'),
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
+      body: Column(
         children: [
-          Text(
-            isItalian
-                ? 'Questa sezione e solo informativa. Non sostituisce un medico reale e non fornisce diagnosi.'
-                : 'This section is informational only. It does not replace a real doctor and does not provide diagnoses.',
+          AgentDisclaimerBanner(
+            text: isItalian
+                ? 'Percorso informativo: compila almeno domanda o sintomi. Non sostituisce un medico reale e non fornisce diagnosi.'
+                : 'Informational workflow: fill at least question or symptoms. It does not replace a real doctor and does not provide diagnoses.',
           ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
+              children: [
+          if (lastCase != null) ...[
+            const SizedBox(height: 12),
+            _LastCaseCard(
+              title: isItalian ? 'Ultimo caso medico' : 'Last medical case',
+              chat: lastCase,
+              onTap: () async {
+                await ref
+                    .read(chatControllerProvider.notifier)
+                    .loadChat(lastCase.id);
+                if (context.mounted) Navigator.pop(context);
+              },
+            ),
+          ],
           const SizedBox(height: 16),
           const _AgentSectionTitle(title: 'Caso'),
           TextField(
@@ -165,9 +186,7 @@ class _MedicalAgentPageState extends ConsumerState<MedicalAgentPage> {
             minLines: 2,
             maxLines: 4,
             decoration: InputDecoration(
-              labelText: isItalian
-                  ? 'Contesto utile'
-                  : 'Helpful context',
+              labelText: isItalian ? 'Contesto utile' : 'Helpful context',
             ),
           ),
           const SizedBox(height: 12),
@@ -179,6 +198,9 @@ class _MedicalAgentPageState extends ConsumerState<MedicalAgentPage> {
               labelText: isItalian ? 'Note extra' : 'Extra notes',
             ),
           ),
+              ],
+            ),
+          ),
         ],
       ),
       bottomNavigationBar: SafeArea(
@@ -186,41 +208,98 @@ class _MedicalAgentPageState extends ConsumerState<MedicalAgentPage> {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           child: FilledButton.icon(
-            onPressed: () async {
-              final messenger = ScaffoldMessenger.of(context);
-              final profile = MedicalProfile(
-                primaryQuestion: _questionController.text.trim(),
-                age: _ageController.text.trim(),
-                sex: _sexController.text.trim(),
-                symptoms: _symptomsController.text.trim(),
-                duration: _durationController.text.trim(),
-                conditions: _conditionsController.text.trim(),
-                medications: _medicationsController.text.trim(),
-                allergies: _allergiesController.text.trim(),
-                context: _contextController.text.trim(),
-                notes: _notesController.text.trim(),
-              );
-              await ref.read(chatControllerProvider.notifier).startMedicalAgent(
-                    profile: profile,
-                  );
-              if (!context.mounted) return;
-              messenger.showSnackBar(
-                SnackBar(
-                  content: Text(
-                    isItalian
-                        ? 'Medico di base pronto nella nuova chat.'
-                        : 'General practitioner ready in the new chat.',
-                  ),
-                ),
-              );
-              Navigator.pop(context);
-            },
-            icon: const Icon(Icons.medical_services_outlined),
+            onPressed: _isStarting
+                ? null
+                : () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    if (_questionController.text.trim().isEmpty &&
+                        _symptomsController.text.trim().isEmpty) {
+                      messenger.showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            isItalian
+                                ? 'Inserisci almeno domanda principale o sintomi.'
+                                : 'Enter at least the main question or symptoms.',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+                    setState(() => _isStarting = true);
+                    try {
+                      final profile = MedicalProfile(
+                        primaryQuestion: _questionController.text.trim(),
+                        age: _ageController.text.trim(),
+                        sex: _sexController.text.trim(),
+                        symptoms: _symptomsController.text.trim(),
+                        duration: _durationController.text.trim(),
+                        conditions: _conditionsController.text.trim(),
+                        medications: _medicationsController.text.trim(),
+                        allergies: _allergiesController.text.trim(),
+                        context: _contextController.text.trim(),
+                        notes: _notesController.text.trim(),
+                      );
+                      await ref
+                          .read(chatControllerProvider.notifier)
+                          .startMedicalAgent(profile: profile);
+                      if (!context.mounted) return;
+                      Navigator.pop(context, true);
+                    } catch (_) {
+                      if (!context.mounted) return;
+                      setState(() => _isStarting = false);
+                    }
+                  },
+            icon: _isStarting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.medical_services_outlined),
             label: Text(
               isItalian ? 'Avvia medico di base' : 'Start general practitioner',
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Chat? _lastChatForKind(List<Chat> chats, String kind) {
+    for (final chat in chats) {
+      if (chat.kind == kind) return chat;
+    }
+    return null;
+  }
+}
+
+class _LastCaseCard extends StatelessWidget {
+  const _LastCaseCard({
+    required this.title,
+    required this.chat,
+    required this.onTap,
+  });
+
+  final String title;
+  final Chat chat;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.history_rounded),
+        title: Text(title),
+        subtitle: Text(
+          chat.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: onTap,
       ),
     );
   }
@@ -237,9 +316,9 @@ class _AgentSectionTitle extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 10),
       child: Text(
         title,
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
+        style: Theme.of(
+          context,
+        ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
       ),
     );
   }

@@ -48,3 +48,11 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 iassistente_backup_*.json
+
+# Claude Code memory/plans (local only)
+.claude/
+
+# Temporary test/debug files
+*.bundle
+groq-stream-test.json
+flutter_01.png

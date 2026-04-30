@@ -1,6 +1,6 @@
 {
-    "name": "iassistente",
-    "short_name": "iassistente",
+    "name": "Mimir",
+    "short_name": "Mimir",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

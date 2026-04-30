@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../l10n/app_strings.dart';
 import '../providers/app_providers.dart';
@@ -17,6 +18,9 @@ class _AccountPageState extends ConsumerState<AccountPage> {
   late final TextEditingController _avatarController;
   String? _languageCode;
   bool _initialized = false;
+  bool _isSavingProfile = false;
+  bool _isBackingUp = false;
+  bool _isRestoring = false;
 
   @override
   void initState() {
@@ -85,7 +89,7 @@ class _AccountPageState extends ConsumerState<AccountPage> {
         padding: const EdgeInsets.fromLTRB(14, 6, 14, 28),
         children: [
           Text(
-            'Account & Privacy',
+            strings.pick(it: 'Account e privacy', en: 'Account and privacy'),
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w700,
               fontSize: 24,
@@ -93,15 +97,21 @@ class _AccountPageState extends ConsumerState<AccountPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Manage your identity, workspace permissions, and how account data interacts with intelligence features.',
+            strings.pick(
+              it: 'Gestisci profilo, consensi e dati locali dell’app.',
+              en: 'Manage profile, consent, and local app data.',
+            ),
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: theme.textTheme.bodySmall?.color,
             ),
           ),
           const SizedBox(height: 24),
           _SectionCard(
-            title: 'Profile Identity',
-            subtitle: 'Your public identity and account metadata.',
+            title: strings.pick(it: 'Profilo', en: 'Profile'),
+            subtitle: strings.pick(
+              it: 'Nome, email, lingua e avatar.',
+              en: 'Name, email, language, and avatar.',
+            ),
             child: Column(
               children: [
                 Row(
@@ -128,7 +138,7 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _MiniLabel('FULL NAME'),
+                          _MiniLabel(strings.fullName),
                           const SizedBox(height: 4),
                           TextField(
                             controller: _nameController,
@@ -148,7 +158,7 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                   ],
                 ),
                 const Divider(height: 28),
-                _MiniLabel('PRIMARY EMAIL'),
+                _MiniLabel(strings.primaryEmail),
                 const SizedBox(height: 6),
                 Row(
                   children: [
@@ -179,7 +189,7 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                   ),
                 ),
                 const Divider(height: 28),
-                _MiniLabel('PREFERRED LANGUAGE'),
+                _MiniLabel(strings.preferredLanguageLabel),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
                   initialValue: _languageCode,
@@ -200,12 +210,13 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                       .toList(),
                   onChanged: (value) {
                     setState(
-                      () => _languageCode = value ?? state.preferredLanguageCode,
+                      () =>
+                          _languageCode = value ?? state.preferredLanguageCode,
                     );
                   },
                 ),
                 const Divider(height: 28),
-                _MiniLabel('AVATAR URL'),
+                _MiniLabel(strings.avatarUrlLabel),
                 const SizedBox(height: 4),
                 TextField(
                   controller: _avatarController,
@@ -222,24 +233,31 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton(
-                    onPressed: () async {
-                      final messenger = ScaffoldMessenger.of(context);
-                      await ref
-                          .read(chatControllerProvider.notifier)
-                          .updateProfile(
-                            name: _nameController.text.trim(),
-                            avatarUrl: _avatarController.text.trim(),
-                          );
-                      await ref
-                          .read(chatControllerProvider.notifier)
-                          .setPreferredLanguage(
-                            _languageCode ?? state.preferredLanguageCode,
-                          );
-                      if (!mounted) return;
-                      messenger.showSnackBar(
-                        SnackBar(content: Text(strings.profileSaved)),
-                      );
-                    },
+                    onPressed: _isSavingProfile
+                        ? null
+                        : () async {
+                            final messenger = ScaffoldMessenger.of(context);
+                            setState(() => _isSavingProfile = true);
+                            try {
+                              await ref
+                                  .read(chatControllerProvider.notifier)
+                                  .updateProfile(
+                                    name: _nameController.text.trim(),
+                                    avatarUrl: _avatarController.text.trim(),
+                                  );
+                              await ref
+                                  .read(chatControllerProvider.notifier)
+                                  .setPreferredLanguage(
+                                    _languageCode ?? state.preferredLanguageCode,
+                                  );
+                              if (!mounted) return;
+                              messenger.showSnackBar(
+                                SnackBar(content: Text(strings.profileSaved)),
+                              );
+                            } finally {
+                              if (mounted) setState(() => _isSavingProfile = false);
+                            }
+                          },
                     style: FilledButton.styleFrom(
                       backgroundColor: isDark
                           ? theme.colorScheme.primary
@@ -249,7 +267,13 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                           : const Color(0xFF1F2A20),
                       elevation: 0,
                     ),
-                    child: const Text('Modify Details'),
+                    child: _isSavingProfile
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(strings.save),
                   ),
                 ),
               ],
@@ -257,17 +281,23 @@ class _AccountPageState extends ConsumerState<AccountPage> {
           ),
           const SizedBox(height: 16),
           _SectionCard(
-            title: 'Security Integrity',
+            title: strings.pick(it: 'Sicurezza', en: 'Security'),
             child: Column(
               children: [
                 _LineItem(
-                  title: 'Authentication Status',
+                  title: strings.pick(
+                    it: 'Stato autenticazione',
+                    en: 'Authentication status',
+                  ),
                   value: isEmailVerified
                       ? strings.emailVerified
                       : strings.emailNotVerified,
                   subtitle: authBypassEnabled
                       ? strings.authBypassBody
-                      : 'Last updated automatically from Firebase.',
+                      : strings.pick(
+                          it: 'Stato aggiornato da Firebase.',
+                          en: 'Status updated from Firebase.',
+                        ),
                 ),
                 const SizedBox(height: 14),
                 if (!authBypassEnabled &&
@@ -305,7 +335,9 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                           onPressed: () async {
                             final messenger = ScaffoldMessenger.of(context);
                             try {
-                              await ref.read(authServiceProvider).reloadCurrentUser();
+                              await ref
+                                  .read(authServiceProvider)
+                                  .reloadCurrentUser();
                               if (!mounted) return;
                               setState(() {});
                               messenger.showSnackBar(
@@ -330,65 +362,105 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                 if (!authBypassEnabled && hasAuthenticatedUser) ...[
                   const SizedBox(height: 12),
                   _LineItem(
-                    title: 'Cloud Backup',
-                    value: 'Connected',
-                    subtitle: 'Push or restore encrypted archives from cloud storage.',
+                    title: strings.pick(it: 'Backup cloud', en: 'Cloud backup'),
+                    value: strings.pick(it: 'Disponibile', en: 'Available'),
+                    subtitle: strings.pick(
+                      it: 'Salva o ripristina un archivio delle conversazioni.',
+                      en: 'Save or restore a conversation archive.',
+                    ),
                   ),
                   const SizedBox(height: 10),
                   Row(
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () async {
-                            final messenger = ScaffoldMessenger.of(context);
-                            try {
-                              await ref
-                                  .read(chatControllerProvider.notifier)
-                                  .pushCloudBackup();
-                              if (!mounted) return;
-                              messenger.showSnackBar(
-                                SnackBar(
-                                  content: Text(strings.cloudBackupUploaded),
-                                ),
-                              );
-                            } catch (error) {
-                              if (!mounted) return;
-                              messenger.showSnackBar(
-                                SnackBar(content: Text(error.toString())),
-                              );
-                            }
-                          },
-                          icon: const Icon(Icons.cloud_upload_outlined),
+                          onPressed: (_isBackingUp || _isRestoring)
+                              ? null
+                              : () async {
+                                  final messenger =
+                                      ScaffoldMessenger.of(context);
+                                  setState(() => _isBackingUp = true);
+                                  try {
+                                    await ref
+                                        .read(chatControllerProvider.notifier)
+                                        .pushCloudBackup();
+                                    if (!mounted) return;
+                                    messenger.showSnackBar(
+                                      SnackBar(
+                                        content:
+                                            Text(strings.cloudBackupUploaded),
+                                      ),
+                                    );
+                                  } catch (error) {
+                                    if (!mounted) return;
+                                    messenger.showSnackBar(
+                                      SnackBar(
+                                        content: Text(error.toString()),
+                                      ),
+                                    );
+                                  } finally {
+                                    if (mounted) {
+                                      setState(() => _isBackingUp = false);
+                                    }
+                                  }
+                                },
+                          icon: _isBackingUp
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.cloud_upload_outlined),
                           label: Text(strings.cloudBackupPush),
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () async {
-                            final messenger = ScaffoldMessenger.of(context);
-                            try {
-                              final restored = await ref
-                                  .read(chatControllerProvider.notifier)
-                                  .pullCloudBackup();
-                              if (!mounted) return;
-                              messenger.showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    restored
-                                        ? strings.cloudBackupRestored
-                                        : strings.noBackupFound('cloud'),
+                          onPressed: (_isBackingUp || _isRestoring)
+                              ? null
+                              : () async {
+                                  final messenger =
+                                      ScaffoldMessenger.of(context);
+                                  setState(() => _isRestoring = true);
+                                  try {
+                                    final restored = await ref
+                                        .read(chatControllerProvider.notifier)
+                                        .pullCloudBackup();
+                                    if (!mounted) return;
+                                    messenger.showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          restored
+                                              ? strings.cloudBackupRestored
+                                              : strings.noBackupFound('cloud'),
+                                        ),
+                                      ),
+                                    );
+                                  } catch (error) {
+                                    if (!mounted) return;
+                                    messenger.showSnackBar(
+                                      SnackBar(
+                                        content: Text(error.toString()),
+                                      ),
+                                    );
+                                  } finally {
+                                    if (mounted) {
+                                      setState(() => _isRestoring = false);
+                                    }
+                                  }
+                                },
+                          icon: _isRestoring
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
                                   ),
-                                ),
-                              );
-                            } catch (error) {
-                              if (!mounted) return;
-                              messenger.showSnackBar(
-                                SnackBar(content: Text(error.toString())),
-                              );
-                            }
-                          },
-                          icon: const Icon(Icons.cloud_download_outlined),
+                                )
+                              : const Icon(Icons.cloud_download_outlined),
                           label: Text(strings.cloudBackupPull),
                         ),
                       ),
@@ -400,14 +472,21 @@ class _AccountPageState extends ConsumerState<AccountPage> {
           ),
           const SizedBox(height: 16),
           _SectionCard(
-            title: 'Intelligence Training',
-            subtitle:
-                'Control diagnostics, personalization, and consent-sensitive behavior.',
-            accentColor: isDark ? const Color(0xFF1B2321) : const Color(0xFFF3E0D6),
+            title: strings.pick(it: 'Consensi', en: 'Consent'),
+            subtitle: strings.pick(
+              it: 'Controlla diagnostica, annunci e funzioni personalizzate.',
+              en: 'Control diagnostics, ads, and personalized features.',
+            ),
+            accentColor: isDark
+                ? const Color(0xFF1B2321)
+                : const Color(0xFFF3E0D6),
             child: Column(
               children: [
                 _ToggleRow(
-                  label: 'Contribute to global training',
+                  label: strings.pick(
+                    it: 'Diagnostica prodotto',
+                    en: 'Product diagnostics',
+                  ),
                   value: state.analyticsConsent,
                   onChanged: (value) => ref
                       .read(chatControllerProvider.notifier)
@@ -415,7 +494,10 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                 ),
                 const SizedBox(height: 12),
                 _ToggleRow(
-                  label: 'Advertising personalization',
+                  label: strings.pick(
+                    it: 'Personalizzazione annunci',
+                    en: 'Advertising personalization',
+                  ),
                   value: state.adsConsent,
                   onChanged: (value) async {
                     await ref
@@ -424,7 +506,8 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                     await ref
                         .read(monetizationServiceProvider)
                         .updateAdsConsent(
-                          ref.read(appRuntimeConfigProvider).adsEnabled && value,
+                          ref.read(appRuntimeConfigProvider).adsEnabled &&
+                              value,
                         );
                   },
                 ),
@@ -433,14 +516,62 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                   strings.privacyPolicyBody,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
+                const SizedBox(height: 8),
+                Wrap(
+                  children: [
+                    TextButton(
+                      onPressed: () => launchUrl(
+                        Uri.parse('https://mimir.app/privacy'),
+                        mode: LaunchMode.externalApplication,
+                      ),
+                      style: TextButton.styleFrom(
+                        minimumSize: Size.zero,
+                        padding: EdgeInsets.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(
+                        strings.privacyPolicyLink,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Text(
+                        '·',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => launchUrl(
+                        Uri.parse('https://mimir.app/terms'),
+                        mode: LaunchMode.externalApplication,
+                      ),
+                      style: TextButton.styleFrom(
+                        minimumSize: Size.zero,
+                        padding: EdgeInsets.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(
+                        strings.termsLink,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
           const SizedBox(height: 16),
           _SectionCard(
-            title: 'Data Archive',
-            subtitle:
-                'Download or remove local and cloud-linked conversation data.',
+            title: strings.pick(it: 'Dati', en: 'Data'),
+            subtitle: strings.pick(
+              it: 'Esporta o rimuovi chat, documenti e dati locali.',
+              en: 'Export or remove chats, documents, and local data.',
+            ),
             child: Column(
               children: [
                 SizedBox(
@@ -457,7 +588,12 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                       );
                     },
                     icon: const Icon(Icons.download_rounded),
-                    label: const Text('Generate Archive'),
+                    label: Text(
+                      strings.pick(
+                        it: 'Esporta archivio',
+                        en: 'Export archive',
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -513,18 +649,24 @@ class _AccountPageState extends ConsumerState<AccountPage> {
           for (final error in diagnostics.errors)
             _SectionCard(
               title: strings.runtimeDiagnostics,
-              accentColor: isDark ? const Color(0xFF3A211C) : const Color(0xFFFFEFE8),
+              accentColor: isDark
+                  ? const Color(0xFF3A211C)
+                  : const Color(0xFFFFEFE8),
               child: Text(
                 error,
                 style: TextStyle(
-                  color: isDark ? const Color(0xFFFFC4B4) : const Color(0xFF8E3720),
+                  color: isDark
+                      ? const Color(0xFFFFC4B4)
+                      : const Color(0xFF8E3720),
                 ),
               ),
             ),
           for (final warning in diagnostics.warnings)
             _SectionCard(
               title: strings.runtimeDiagnostics,
-              accentColor: isDark ? const Color(0xFF332A1A) : const Color(0xFFFFF4DF),
+              accentColor: isDark
+                  ? const Color(0xFF332A1A)
+                  : const Color(0xFFFFF4DF),
               child: Text(warning),
             ),
         ],
@@ -680,9 +822,9 @@ class _LineItem extends StatelessWidget {
       children: [
         Text(
           title,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 4),
         Text(value, style: Theme.of(context).textTheme.bodyLarge),
@@ -716,9 +858,9 @@ class _ToggleRow extends StatelessWidget {
         Expanded(
           child: Text(
             label,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
           ),
         ),
         Switch(value: value, onChanged: onChanged),

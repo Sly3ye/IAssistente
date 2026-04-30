@@ -673,6 +673,7 @@ class ChatController extends StateNotifier<ChatState> {
   Future<void> newChat() async {
     final chat = await _repo.createChat(
       title: _strings.newChat,
+      kind: Chat.kindGeneral,
       providerId: state.selectedProviderId,
       modelId: state.selectedModelId,
       systemPrompt: state.selectedSystemPrompt,
@@ -696,19 +697,20 @@ class ChatController extends StateNotifier<ChatState> {
     );
   }
 
-  Future<void> startDietAgent({
-    required DietProfile profile,
-  }) async {
+  Future<void> startDietAgent({required DietProfile profile}) async {
     await saveDietProfile(profile);
     final sections = _dietProfileSections(profile);
     final systemPrompt = _buildDietAgentPrompt(sections);
     final chat = await _repo.createChat(
       title: 'Agente dieta',
+      kind: Chat.kindDiet,
       providerId: state.selectedProviderId,
       modelId: state.selectedModelId,
       systemPrompt: systemPrompt,
       temperature: 0.25,
-      maxTokens: state.selectedMaxTokens < 1600 ? 1600 : state.selectedMaxTokens,
+      maxTokens: state.selectedMaxTokens < 1600
+          ? 1600
+          : state.selectedMaxTokens,
       topP: 0.9,
     );
     final welcome = _buildDietAgentWelcome(sections);
@@ -748,19 +750,20 @@ class ChatController extends StateNotifier<ChatState> {
     );
   }
 
-  Future<void> startMedicalAgent({
-    required MedicalProfile profile,
-  }) async {
+  Future<void> startMedicalAgent({required MedicalProfile profile}) async {
     await saveMedicalProfile(profile);
     final sections = _medicalProfileSections(profile);
     final systemPrompt = _buildMedicalAgentPrompt(sections);
     final chat = await _repo.createChat(
       title: 'Medico di base',
+      kind: Chat.kindMedical,
       providerId: state.selectedProviderId,
       modelId: state.selectedModelId,
       systemPrompt: systemPrompt,
       temperature: 0.2,
-      maxTokens: state.selectedMaxTokens < 1800 ? 1800 : state.selectedMaxTokens,
+      maxTokens: state.selectedMaxTokens < 1800
+          ? 1800
+          : state.selectedMaxTokens,
       topP: 0.9,
     );
     final welcome = _buildMedicalAgentWelcome(sections);
@@ -800,19 +803,20 @@ class ChatController extends StateNotifier<ChatState> {
     );
   }
 
-  Future<void> startLegalAgent({
-    required LegalProfile profile,
-  }) async {
+  Future<void> startLegalAgent({required LegalProfile profile}) async {
     await saveLegalProfile(profile);
     final sections = _legalProfileSections(profile);
     final systemPrompt = _buildLegalAgentPrompt(sections);
     final chat = await _repo.createChat(
       title: 'Avvocato',
+      kind: Chat.kindLegal,
       providerId: state.selectedProviderId,
       modelId: state.selectedModelId,
       systemPrompt: systemPrompt,
       temperature: 0.15,
-      maxTokens: state.selectedMaxTokens < 1800 ? 1800 : state.selectedMaxTokens,
+      maxTokens: state.selectedMaxTokens < 1800
+          ? 1800
+          : state.selectedMaxTokens,
       topP: 0.9,
     );
     final welcome = _buildLegalAgentWelcome(sections);
@@ -1143,31 +1147,35 @@ class ChatController extends StateNotifier<ChatState> {
             : 'default',
       );
       if (_authService.currentDisplayName.isNotEmpty) {
-        await _repo.setAppState(_profileNameKey, _authService.currentDisplayName);
+        await _repo.setAppState(
+          _profileNameKey,
+          _authService.currentDisplayName,
+        );
       }
       if (_authService.currentPhotoUrl.isNotEmpty) {
         await _repo.setAppState(_avatarUrlKey, _authService.currentPhotoUrl);
       }
     }
 
-    state = ChatState.initial(
-      defaultProvider: defaultProvider,
-      dailyTokenLimit: _dailyLimitForPremium(false),
-      nextAdTriggerTokens: _runtimeConfig.adTriggerStep,
-      rewardedTokenBonus: _runtimeConfig.rewardedTokenBonus,
-      providerModels: preservedProviderModels,
-      defaultLanguageCode: preservedLanguage,
-    ).copyWith(
-      isLoading: false,
-      preferredLanguageCode: preservedLanguage,
-      profileName: _authService.currentDisplayName,
-      profileEmail: _authService.currentEmail ?? '',
-      avatarUrl: _authService.currentPhotoUrl,
-      onboardingVariant: preservedOnboardingVariant,
-      shouldShowOnboarding:
-          currentUid.isNotEmpty && _runtimeConfig.onboardingEnabled,
-      clearError: true,
-    );
+    state =
+        ChatState.initial(
+          defaultProvider: defaultProvider,
+          dailyTokenLimit: _dailyLimitForPremium(false),
+          nextAdTriggerTokens: _runtimeConfig.adTriggerStep,
+          rewardedTokenBonus: _runtimeConfig.rewardedTokenBonus,
+          providerModels: preservedProviderModels,
+          defaultLanguageCode: preservedLanguage,
+        ).copyWith(
+          isLoading: false,
+          preferredLanguageCode: preservedLanguage,
+          profileName: _authService.currentDisplayName,
+          profileEmail: _authService.currentEmail ?? '',
+          avatarUrl: _authService.currentPhotoUrl,
+          onboardingVariant: preservedOnboardingVariant,
+          shouldShowOnboarding:
+              currentUid.isNotEmpty && _runtimeConfig.onboardingEnabled,
+          clearError: true,
+        );
 
     if (currentUid.isNotEmpty) {
       await refreshProviderModels();
@@ -1211,7 +1219,10 @@ class ChatController extends StateNotifier<ChatState> {
   }) async {
     final cleaned = content.trim();
     if (cleaned.isEmpty) return;
-    final serialized = MemoryEntry(category: category, content: cleaned).serialize();
+    final serialized = MemoryEntry(
+      category: category,
+      content: cleaned,
+    ).serialize();
     final current = <String>[
       for (final item in state.memoryNotes) _normalizeMemoryStorage(item),
     ];
@@ -1229,14 +1240,19 @@ class ChatController extends StateNotifier<ChatState> {
   }) async {
     final cleaned = content.trim();
     if (cleaned.isEmpty) return;
-    final nextValue = MemoryEntry(category: category, content: cleaned).serialize();
-    final updated = state.memoryNotes.map((item) {
-      final normalized = _normalizeMemoryStorage(item);
-      if (normalized == _normalizeMemoryStorage(previousValue)) {
-        return nextValue;
-      }
-      return normalized;
-    }).toList(growable: false);
+    final nextValue = MemoryEntry(
+      category: category,
+      content: cleaned,
+    ).serialize();
+    final updated = state.memoryNotes
+        .map((item) {
+          final normalized = _normalizeMemoryStorage(item);
+          if (normalized == _normalizeMemoryStorage(previousValue)) {
+            return nextValue;
+          }
+          return normalized;
+        })
+        .toList(growable: false);
     await _repo.setAppState(_memoryNotesKey, jsonEncode(updated));
     state = state.copyWith(memoryNotes: updated);
   }
@@ -1477,9 +1493,37 @@ class ChatController extends StateNotifier<ChatState> {
       final safety = checkSafety(
         cleaned,
         languageCode: state.preferredLanguageCode,
+        chatKind: state.currentChat?.kind ?? Chat.kindGeneral,
       );
       if (safety.isBlocked) {
-        state = state.copyWith(errorMessage: safety.reason);
+        if (state.currentChat == null) {
+          await newChat();
+        }
+        final chat = state.currentChat!;
+        await _repo.addMessage(
+          chatId: chat.id,
+          role: 'user',
+          content: visibleText.isEmpty ? cleaned : visibleText,
+        );
+        await _repo.addMessage(
+          chatId: chat.id,
+          role: 'assistant',
+          content: safety.reason,
+          isError: true,
+        );
+        final updatedMessages = await _repo.loadMessages(chat.id);
+        final chats = await _loadNormalizedChats();
+        state = state.copyWith(
+          chats: chats,
+          currentChat: chats.firstWhere(
+            (item) => item.id == chat.id,
+            orElse: () => chat,
+          ),
+          messages: updatedMessages,
+          streamingText: '',
+          sendingChatId: null,
+          errorMessage: safety.reason,
+        );
         return;
       }
     }
@@ -1553,7 +1597,9 @@ class ChatController extends StateNotifier<ChatState> {
       await _consumeEstimatedTokens(estimateTokensFromText(localTool.reply));
       final updatedMessages = await _repo.loadMessages(chat.id);
       state = state.copyWith(
-        messages: state.currentChat?.id == chat.id ? updatedMessages : state.messages,
+        messages: state.currentChat?.id == chat.id
+            ? updatedMessages
+            : state.messages,
         isSending: false,
         streamingText: '',
         sendingChatId: null,
@@ -1562,11 +1608,22 @@ class ChatController extends StateNotifier<ChatState> {
       return;
     }
 
-    final result = await _generateAssistant(
-      chat: chat,
-      preferredProvider: provider,
-      messages: messages,
-    );
+    final _AssistantResult result;
+    try {
+      result = await _generateAssistant(
+        chat: chat,
+        preferredProvider: provider,
+        messages: messages,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isSending: false,
+        streamingText: '',
+        sendingChatId: null,
+        errorMessage: e.toString(),
+      );
+      return;
+    }
 
     if (!result.isError && result.reply.isNotEmpty) {
       if (messages.length == 1 && _isUntitledChat(chat.title)) {
@@ -1618,11 +1675,20 @@ class ChatController extends StateNotifier<ChatState> {
       clearError: true,
     );
 
-    await _generateAssistant(
-      chat: state.currentChat!,
-      preferredProvider: provider,
-      messages: messages,
-    );
+    try {
+      await _generateAssistant(
+        chat: state.currentChat!,
+        preferredProvider: provider,
+        messages: messages,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isSending: false,
+        streamingText: '',
+        sendingChatId: null,
+        errorMessage: e.toString(),
+      );
+    }
   }
 
   Future<void> retryFromAssistant(Message message) async {
@@ -1650,11 +1716,20 @@ class ChatController extends StateNotifier<ChatState> {
       latestRagSourceNames: const [],
       clearError: true,
     );
-    await _generateAssistant(
-      chat: state.currentChat!,
-      preferredProvider: provider,
-      messages: messages,
-    );
+    try {
+      await _generateAssistant(
+        chat: state.currentChat!,
+        preferredProvider: provider,
+        messages: messages,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isSending: false,
+        streamingText: '',
+        sendingChatId: null,
+        errorMessage: e.toString(),
+      );
+    }
   }
 
   Future<void> editUserMessage(Message message, String newContent) async {
@@ -1727,8 +1802,12 @@ class ChatController extends StateNotifier<ChatState> {
       );
       state = state.copyWith(
         chats: chats,
-        currentChat: state.currentChat?.id == chat.id ? current : state.currentChat,
-        messages: state.currentChat?.id == chat.id ? updatedMessages : state.messages,
+        currentChat: state.currentChat?.id == chat.id
+            ? current
+            : state.currentChat,
+        messages: state.currentChat?.id == chat.id
+            ? updatedMessages
+            : state.messages,
         isSending: false,
         streamingText: '',
         sendingChatId: null,
@@ -1980,7 +2059,12 @@ class ChatController extends StateNotifier<ChatState> {
       }
     }
 
-    if (_cancelRequested) return '';
+    if (_cancelRequested) {
+      if (state.currentChat?.id == chatId) {
+        state = state.copyWith(streamingText: '');
+      }
+      return '';
+    }
     return buffer.toString().trim();
   }
 
@@ -2113,10 +2197,7 @@ class ChatController extends StateNotifier<ChatState> {
     await refreshChats();
   }
 
-  String _titleSeed({
-    required String firstMessage,
-    String? firstReply,
-  }) {
+  String _titleSeed({required String firstMessage, String? firstReply}) {
     final reply = (firstReply ?? '').trim();
     if (reply.isEmpty) {
       return 'Prima richiesta: $firstMessage';
@@ -2137,10 +2218,10 @@ class ChatController extends StateNotifier<ChatState> {
 
     final preferred = switch (provider.id) {
       'groq' => prefer([
-          'llama-3.3-70b-versatile',
-          'qwen/qwen3-32b',
-          'openai/gpt-oss-120b',
-        ]),
+        'llama-3.3-70b-versatile',
+        'qwen/qwen3-32b',
+        'openai/gpt-oss-120b',
+      ]),
       'openai' => prefer(['gpt-4o', 'gpt-4o-mini']),
       'proxy' => currentModelId,
       _ => null,
@@ -2548,31 +2629,50 @@ class ChatController extends StateNotifier<ChatState> {
     final cleaned = message.trim();
     final lower = cleaned.toLowerCase();
 
-    if (lower.contains('mi chiamo ') ||
-        lower.contains('sono ') ||
-        lower.contains('il mio lavoro') ||
-        lower.contains('lavoro come ')) {
-      return MemoryEntry(category: MemoryCategory.profile, content: cleaned);
+    String? afterPrefix(String prefix) {
+      if (!lower.startsWith(prefix)) return null;
+      return cleaned.substring(prefix.length).trim();
     }
-    if (lower.contains('preferisco ') ||
-        lower.contains('mi piace ') ||
-        lower.contains('di solito uso ') ||
-        lower.contains('lingua preferita')) {
-      return MemoryEntry(category: MemoryCategory.preference, content: cleaned);
+
+    final explicit =
+        afterPrefix('ricorda che ') ??
+        afterPrefix('salva in memoria ') ??
+        afterPrefix('remember that ') ??
+        afterPrefix('save to memory ');
+    if (explicit == null || explicit.isEmpty) return null;
+
+    final explicitLower = explicit.toLowerCase();
+    if (explicitLower.contains('preferisco') ||
+        explicitLower.contains('mi piace') ||
+        explicitLower.contains('non mi piace') ||
+        explicitLower.contains('prefer ')) {
+      return MemoryEntry(
+        category: MemoryCategory.preference,
+        content: explicit,
+      );
     }
-    if (lower.contains('non posso ') ||
-        lower.contains('sono allergico') ||
-        lower.contains('evita ') ||
-        lower.contains('non voglio ')) {
-      return MemoryEntry(category: MemoryCategory.constraint, content: cleaned);
+    if (explicitLower.contains('non posso') ||
+        explicitLower.contains('devo evitare') ||
+        explicitLower.contains('vincolo') ||
+        explicitLower.contains('allerg') ||
+        explicitLower.contains('avoid')) {
+      return MemoryEntry(
+        category: MemoryCategory.constraint,
+        content: explicit,
+      );
     }
-    if (lower.contains('il mio obiettivo') ||
-        lower.contains('voglio ') ||
-        lower.contains('devo ') ||
-        lower.contains('sto cercando di ')) {
-      return MemoryEntry(category: MemoryCategory.goal, content: cleaned);
+    if (explicitLower.contains('obiettivo') ||
+        explicitLower.contains('voglio') ||
+        explicitLower.contains('goal')) {
+      return MemoryEntry(category: MemoryCategory.goal, content: explicit);
     }
-    return null;
+    if (explicitLower.contains('mi chiamo') ||
+        explicitLower.contains('lavoro come') ||
+        explicitLower.contains('my name') ||
+        explicitLower.contains('i work as')) {
+      return MemoryEntry(category: MemoryCategory.profile, content: explicit);
+    }
+    return MemoryEntry(category: MemoryCategory.note, content: explicit);
   }
 
   _ResolvedRuntimeConfig _buildRuntimeConfig(
@@ -2642,15 +2742,10 @@ class ChatController extends StateNotifier<ChatState> {
     return [
       if (profile.goal.trim().isNotEmpty) 'Obiettivo: ${profile.goal.trim()}',
       if (profile.age.trim().isNotEmpty || profile.sex.trim().isNotEmpty)
-        'Dati base: ${[
-          if (profile.age.trim().isNotEmpty) 'eta ${profile.age.trim()}',
-          if (profile.sex.trim().isNotEmpty) 'sesso ${profile.sex.trim()}',
-        ].join(', ')}',
-      if (profile.heightCm.trim().isNotEmpty || profile.weightKg.trim().isNotEmpty)
-        'Misure: ${[
-          if (profile.heightCm.trim().isNotEmpty) 'altezza ${profile.heightCm.trim()} cm',
-          if (profile.weightKg.trim().isNotEmpty) 'peso ${profile.weightKg.trim()} kg',
-        ].join(', ')}',
+        'Dati base: ${[if (profile.age.trim().isNotEmpty) 'eta ${profile.age.trim()}', if (profile.sex.trim().isNotEmpty) 'sesso ${profile.sex.trim()}'].join(', ')}',
+      if (profile.heightCm.trim().isNotEmpty ||
+          profile.weightKg.trim().isNotEmpty)
+        'Misure: ${[if (profile.heightCm.trim().isNotEmpty) 'altezza ${profile.heightCm.trim()} cm', if (profile.weightKg.trim().isNotEmpty) 'peso ${profile.weightKg.trim()} kg'].join(', ')}',
       if (profile.activityLevel.trim().isNotEmpty)
         'Attivita: ${profile.activityLevel.trim()}',
       if (profile.dietStyle.trim().isNotEmpty)
@@ -2674,10 +2769,7 @@ class ChatController extends StateNotifier<ChatState> {
       if (profile.primaryQuestion.trim().isNotEmpty)
         'Richiesta principale: ${profile.primaryQuestion.trim()}',
       if (profile.age.trim().isNotEmpty || profile.sex.trim().isNotEmpty)
-        'Dati base: ${[
-          if (profile.age.trim().isNotEmpty) 'eta ${profile.age.trim()}',
-          if (profile.sex.trim().isNotEmpty) 'sesso ${profile.sex.trim()}',
-        ].join(', ')}',
+        'Dati base: ${[if (profile.age.trim().isNotEmpty) 'eta ${profile.age.trim()}', if (profile.sex.trim().isNotEmpty) 'sesso ${profile.sex.trim()}'].join(', ')}',
       if (profile.symptoms.trim().isNotEmpty)
         'Sintomi o tema: ${profile.symptoms.trim()}',
       if (profile.duration.trim().isNotEmpty)
@@ -2699,7 +2791,8 @@ class ChatController extends StateNotifier<ChatState> {
     return [
       if (profile.primaryQuestion.trim().isNotEmpty)
         'Richiesta principale: ${profile.primaryQuestion.trim()}',
-      if (profile.topic.trim().isNotEmpty) 'Area legale: ${profile.topic.trim()}',
+      if (profile.topic.trim().isNotEmpty)
+        'Area legale: ${profile.topic.trim()}',
       if (profile.jurisdiction.trim().isNotEmpty)
         'Paese o giurisdizione: ${profile.jurisdiction.trim()}',
       if (profile.userRole.trim().isNotEmpty)
@@ -2739,13 +2832,14 @@ Stile risposta:
 - poi proponi un piano semplice e realistico
 - usa sezioni brevi
 - evita teoria inutile
-- se utile, produci: menu giornaliero, alternative, lista spesa, consigli di aderenza
-- quando l'utente chiede un piano o un menu, prova a rispondere con questo formato:
-  1. Obiettivo
+- quando l'utente chiede un piano, un menu o l'analisi di un allegato, usa sempre questo formato:
+  1. Obiettivo pratico
   2. Piano proposto
   3. Alternative rapide
-  4. Lista spesa
-  5. Prossimo passo
+  4. Lista spesa o preparazione
+  5. Aderenza e rischi da evitare
+  6. Prossimo passo
+- chiudi sempre con 2-4 follow-up rapidi, scritti come azioni brevi
 
 Profilo utente per questo agente:
 $profileBlock
@@ -2760,6 +2854,7 @@ $profileBlock
 Sei Mimir Medico di Base, un assistente informativo sanitario prudente.
 
 Obiettivo:
+- distinguere in modo prudente cio che sembra gestibile da cio che merita attenzione professionale
 - aiutare l'utente a capire meglio sintomi, domande mediche comuni, possibili scenari da discutere con un medico e prossimi passi ragionevoli
 - distinguere ciò che sembra benigno da ciò che merita attenzione professionale
 - organizzare le informazioni in modo chiaro e non allarmistico
@@ -2770,16 +2865,20 @@ Vincoli non negoziabili:
 - non prescrivi farmaci o dosaggi
 - dichiara chiaramente che le informazioni sono generali e non sostituiscono un professionista sanitario
 - se emergono red flags, invita subito a sentire medico, guardia medica o pronto soccorso a seconda della gravita
+- se l'utente allega referti o testi clinici, estrai solo dati leggibili, incertezze e domande da portare al medico
 
 Stile risposta:
 - apri con un breve disclaimer se la richiesta tocca salute reale
 - poi dai una lettura prudente e strutturata
 - usa sezioni brevi
-- se utile usa questo formato:
-  1. Cosa potrebbe significare in generale
-  2. Cose da monitorare
-  3. Quando sentire un medico
-  4. Cosa preparare o chiedere alla visita
+- usa sempre questo formato:
+  1. Sintesi prudente
+  2. Possibili spiegazioni generali
+  3. Cose da monitorare
+  4. Quando sentire un medico
+  5. Cosa preparare o chiedere alla visita
+  6. Informazioni mancanti
+- chiudi sempre con 2-4 follow-up rapidi, scritti come azioni brevi
 
 Profilo utente per questo agente:
 $profileBlock
@@ -2797,6 +2896,7 @@ Obiettivo:
 - aiutare l'utente a capire in termini generali il problema legale
 - organizzare fatti, opzioni, documenti utili e prossimi passi
 - rendere piu chiaro cosa chiedere poi a un professionista vero
+- se l'utente allega un documento, distingui fatti letti, clausole o punti critici, documenti mancanti e domande da fare
 
 Vincoli non negoziabili:
 - non sei un avvocato reale
@@ -2808,12 +2908,14 @@ Stile risposta:
 - apri con un breve disclaimer se la richiesta tocca un caso reale
 - poi organizza il ragionamento in modo operativo
 - usa sezioni brevi
-- se utile usa questo formato:
+- usa sempre questo formato:
   1. Inquadramento generale
   2. Punti critici
   3. Documenti o prove utili
   4. Prossimi passi
   5. Quando rivolgersi a un avvocato
+  6. Informazioni mancanti
+- chiudi sempre con 2-4 follow-up rapidi, scritti come azioni brevi
 
 Profilo utente per questo agente:
 $profileBlock

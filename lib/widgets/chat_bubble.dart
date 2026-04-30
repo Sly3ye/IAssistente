@@ -1,6 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:io';
+
 import '../models/message.dart';
 
 class ChatBubble extends StatelessWidget {
@@ -13,6 +15,7 @@ class ChatBubble extends StatelessWidget {
   final String copyTooltip;
   final String readAloudTooltip;
   final String copiedMessage;
+  final String errorLabel;
   final String? sourcesTitle;
   final List<String> sourceNames;
 
@@ -27,6 +30,7 @@ class ChatBubble extends StatelessWidget {
     required this.copyTooltip,
     required this.readAloudTooltip,
     required this.copiedMessage,
+    this.errorLabel = 'Error',
     this.sourcesTitle,
     this.sourceNames = const [],
   });
@@ -105,8 +109,8 @@ class ChatBubble extends StatelessWidget {
                     constraints: BoxConstraints(
                       maxWidth: MediaQuery.of(context).size.width * 0.74,
                     ),
-                      child: Container(
-                        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
                       decoration: BoxDecoration(
                         color: bubbleColor,
                         borderRadius: BorderRadius.only(
@@ -115,9 +119,7 @@ class ChatBubble extends StatelessWidget {
                           bottomLeft: Radius.circular(isUser ? 22 : 8),
                           bottomRight: Radius.circular(isUser ? 8 : 22),
                         ),
-                        border: Border.all(
-                          color: borderColor,
-                        ),
+                        border: Border.all(color: borderColor),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -134,24 +136,46 @@ class ChatBubble extends StatelessWidget {
                                 const SizedBox(height: 10),
                             ],
                           ],
-                          if (visibleContent.isNotEmpty)
-                            Text(
-                              visibleContent,
-                              style: TextStyle(
-                                color: isUser
-                                    ? (isDarkTheme
-                                          ? const Color(0xFFF6FBFA)
-                                          : Colors.white)
-                                    : (isError
-                                          ? (isDarkTheme
-                                                ? const Color(0xFFFFC4B4)
-                                                : const Color(0xFF8E3720))
-                                          : theme.colorScheme.onSurface),
-                                fontStyle: isStreaming
-                                    ? FontStyle.italic
-                                    : FontStyle.normal,
-                                height: 1.45,
+                          if (isError && !isUser)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.error_outline_rounded,
+                                    size: 14,
+                                    color: isDarkTheme
+                                        ? const Color(0xFFFFC4B4)
+                                        : const Color(0xFF8E3720),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    errorLabel,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: isDarkTheme
+                                          ? const Color(0xFFFFC4B4)
+                                          : const Color(0xFF8E3720),
+                                    ),
+                                  ),
+                                ],
                               ),
+                            ),
+                          if (visibleContent.isNotEmpty)
+                            _BubbleText(
+                              text: visibleContent,
+                              isStreaming: isStreaming,
+                              textColor: isUser
+                                  ? (isDarkTheme
+                                        ? const Color(0xFFF6FBFA)
+                                        : Colors.white)
+                                  : (isError
+                                        ? (isDarkTheme
+                                              ? const Color(0xFFFFC4B4)
+                                              : const Color(0xFF8E3720))
+                                        : theme.colorScheme.onSurface),
                             ),
                         ],
                       ),
@@ -258,6 +282,89 @@ class ChatBubble extends StatelessWidget {
   }
 }
 
+class _BubbleText extends StatelessWidget {
+  const _BubbleText({
+    required this.text,
+    required this.isStreaming,
+    required this.textColor,
+  });
+
+  final String text;
+  final bool isStreaming;
+  final Color textColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = TextStyle(
+      color: textColor,
+      fontStyle: isStreaming ? FontStyle.italic : FontStyle.normal,
+      height: 1.45,
+    );
+    if (!isStreaming) return Text(text, style: style);
+    return Text.rich(
+      TextSpan(
+        text: text,
+        style: style,
+        children: [
+          WidgetSpan(
+            alignment: PlaceholderAlignment.baseline,
+            baseline: TextBaseline.alphabetic,
+            child: _StreamingCursor(color: textColor),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StreamingCursor extends StatefulWidget {
+  const _StreamingCursor({required this.color});
+  final Color color;
+
+  @override
+  State<_StreamingCursor> createState() => _StreamingCursorState();
+}
+
+class _StreamingCursorState extends State<_StreamingCursor>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 520),
+    )..repeat(reverse: true);
+    _opacity = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _opacity,
+      child: Text(
+        ' |',
+        style: TextStyle(
+          color: widget.color,
+          fontStyle: FontStyle.normal,
+          height: 1.45,
+          fontWeight: FontWeight.w300,
+        ),
+      ),
+    );
+  }
+}
+
 class _MessageActionButton extends StatefulWidget {
   const _MessageActionButton({
     required this.tooltip,
@@ -296,9 +403,7 @@ class _MessageActionButtonState extends State<_MessageActionButton> {
           curve: Curves.easeOut,
           decoration: BoxDecoration(
             color: _pressed
-                ? (isDark
-                      ? const Color(0xFF2A3431)
-                      : const Color(0xFFEDE2D0))
+                ? (isDark ? const Color(0xFF2A3431) : const Color(0xFFEDE2D0))
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
           ),
@@ -364,10 +469,7 @@ String _stripAttachmentMarker(String content) {
 }
 
 class _AttachmentPreview extends StatelessWidget {
-  const _AttachmentPreview({
-    required this.attachment,
-    required this.isUser,
-  });
+  const _AttachmentPreview({required this.attachment, required this.isUser});
 
   final _ParsedAttachment attachment;
   final bool isUser;

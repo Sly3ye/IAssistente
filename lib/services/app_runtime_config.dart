@@ -1,5 +1,6 @@
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class AppRuntimeConfig {
   const AppRuntimeConfig({
@@ -61,6 +62,7 @@ class AppRuntimeConfigService {
       });
       await remoteConfig.fetchAndActivate();
 
+      final remoteProviderId = remoteConfig.getString('default_provider_id').trim();
       return AppRuntimeConfig(
         baseDailyTokenLimit: remoteConfig.getInt('base_daily_token_limit'),
         premiumDailyTokenLimit: remoteConfig.getInt(
@@ -68,13 +70,37 @@ class AppRuntimeConfigService {
         ),
         adTriggerStep: remoteConfig.getInt('rewarded_ad_trigger_step'),
         rewardedTokenBonus: remoteConfig.getInt('rewarded_token_bonus'),
-        defaultProviderId: remoteConfig.getString('default_provider_id').trim(),
+        defaultProviderId: _resolveDefaultProvider(remoteProviderId),
         onboardingEnabled: remoteConfig.getBool('onboarding_enabled'),
         paywallEnabled: remoteConfig.getBool('paywall_enabled'),
         adsEnabled: remoteConfig.getBool('ads_enabled'),
       );
     } catch (_) {
-      return const AppRuntimeConfig.defaults();
+      return AppRuntimeConfig(
+        baseDailyTokenLimit: 20000,
+        premiumDailyTokenLimit: 100000,
+        adTriggerStep: 5000,
+        rewardedTokenBonus: 2500,
+        defaultProviderId: _resolveDefaultProvider('groq'),
+        onboardingEnabled: true,
+        paywallEnabled: true,
+        adsEnabled: true,
+      );
     }
+  }
+
+  /// If direct client-side LLM usage is blocked in production and a proxy is
+  /// configured, transparently switch the default provider to 'proxy' so fresh
+  /// installs work out of the box without a manual provider change.
+  static String _resolveDefaultProvider(String preferred) {
+    final appEnv = (dotenv.env['APP_ENV'] ?? '').trim().toLowerCase();
+    final allowDirect =
+        (dotenv.env['ALLOW_CLIENT_SIDE_LLM_IN_PRODUCTION'] ?? '')
+            .trim()
+            .toLowerCase();
+    final proxyUrl = (dotenv.env['LLM_PROXY_URL'] ?? '').trim();
+    final blocked = appEnv == 'production' && allowDirect != 'true';
+    if (blocked && proxyUrl.isNotEmpty && preferred != 'proxy') return 'proxy';
+    return preferred;
   }
 }

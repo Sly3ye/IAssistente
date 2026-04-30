@@ -1,8 +1,5 @@
 class AppConfigDiagnostics {
-  const AppConfigDiagnostics({
-    required this.errors,
-    required this.warnings,
-  });
+  const AppConfigDiagnostics({required this.errors, required this.warnings});
 
   const AppConfigDiagnostics.empty() : errors = const [], warnings = const [];
 
@@ -18,12 +15,15 @@ class AppConfigDiagnostics {
     final errors = <String>[];
     final warnings = <String>[];
 
-    final appEnv = (environment['APP_ENV'] ?? 'development').trim().toLowerCase();
-    final proxyUrl = (environment['LLM_PROXY_URL'] ?? '').trim();
-    final proxyAuthToken = (environment['LLM_PROXY_AUTH_TOKEN'] ?? '').trim();
-    final allowDirect = (environment['ALLOW_CLIENT_SIDE_LLM_IN_PRODUCTION'] ?? '')
+    final appEnv = (environment['APP_ENV'] ?? 'development')
         .trim()
         .toLowerCase();
+    final proxyUrl = (environment['LLM_PROXY_URL'] ?? '').trim();
+    final proxyAuthToken = (environment['LLM_PROXY_AUTH_TOKEN'] ?? '').trim();
+    final allowDirect =
+        (environment['ALLOW_CLIENT_SIDE_LLM_IN_PRODUCTION'] ?? '')
+            .trim()
+            .toLowerCase();
     final directKeys = [
       'OPENAI_API_KEY',
       'ANTHROPIC_API_KEY',
@@ -57,9 +57,7 @@ class AppConfigDiagnostics {
         if (appEnv == 'production' &&
             uri.scheme.toLowerCase() != 'https' &&
             uri.host != 'localhost') {
-          warnings.add(
-            'Production proxy should use HTTPS.',
-          );
+          warnings.add('Production proxy should use HTTPS.');
         }
       }
 

@@ -8,6 +8,7 @@ part 'app_database.g.dart';
 class Chats extends Table {
   TextColumn get id => text()();
   TextColumn get title => text()();
+  TextColumn get kind => text().withDefault(const Constant("general"))();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
   TextColumn get providerId => text()();
@@ -50,7 +51,7 @@ class AppDatabase extends _$AppDatabase {
       );
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -61,6 +62,9 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(chats, chats.temperature);
         await m.addColumn(chats, chats.maxTokens);
         await m.addColumn(chats, chats.topP);
+      }
+      if (from < 3) {
+        await m.addColumn(chats, chats.kind);
       }
     },
   );

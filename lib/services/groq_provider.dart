@@ -19,26 +19,17 @@ class GroqProvider implements LLMProvider {
   String get label => 'Groq';
 
   @override
-  bool get supportsStreaming => false;
+  bool get supportsStreaming => true;
 
   @override
   List<LLMModelOption> get models => const [
-    LLMModelOption(
-      id: 'llama-3.1-8b-instant',
-      label: 'Llama 3.1 8B Instant',
-    ),
+    LLMModelOption(id: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant'),
     LLMModelOption(
       id: 'llama-3.3-70b-versatile',
       label: 'Llama 3.3 70B Versatile',
     ),
-    LLMModelOption(
-      id: 'qwen/qwen3-32b',
-      label: 'Qwen3 32B',
-    ),
-    LLMModelOption(
-      id: 'openai/gpt-oss-120b',
-      label: 'GPT-OSS 120B',
-    ),
+    LLMModelOption(id: 'qwen/qwen3-32b', label: 'Qwen3 32B'),
+    LLMModelOption(id: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B'),
   ];
 
   @override
@@ -48,10 +39,12 @@ class GroqProvider implements LLMProvider {
     if (isClientSideProviderBlockedInProduction()) return models;
 
     try {
-      final response = await http.get(
-        Uri.parse(_modelsUrl),
-        headers: {'Authorization': 'Bearer $apiKey'},
-      );
+      final response = await http
+          .get(
+            Uri.parse(_modelsUrl),
+            headers: {'Authorization': 'Bearer $apiKey'},
+          )
+          .timeout(const Duration(seconds: 15));
       final data = jsonDecode(response.body);
       if (response.statusCode != 200 || data is! Map<String, dynamic>) {
         return models;
@@ -94,25 +87,32 @@ class GroqProvider implements LLMProvider {
     }
 
     try {
-      final response = await http.post(
-        Uri.parse(_baseUrl),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $apiKey',
-        },
-        body: jsonEncode({
-          'model': modelId,
-          'temperature': config.temperature,
-          'top_p': config.topP,
-          'max_tokens': config.maxTokens,
-          'messages': [
-            {'role': 'system', 'content': _systemPrompt(config)},
-            ...messages.map((m) => {'role': m.role, 'content': m.content}),
-          ],
-        }),
-      );
+      final response = await http
+          .post(
+            Uri.parse(_baseUrl),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $apiKey',
+            },
+            body: jsonEncode({
+              'model': modelId,
+              'temperature': config.temperature,
+              'top_p': config.topP,
+              'max_tokens': config.maxTokens,
+              'messages': [
+                {'role': 'system', 'content': _systemPrompt(config)},
+                ...messages.map((m) => {'role': m.role, 'content': m.content}),
+              ],
+            }),
+          )
+          .timeout(const Duration(seconds: 60));
 
       final data = jsonDecode(response.body);
+      if (response.statusCode == 429) {
+        final retryAfter = response.headers['retry-after'];
+        final wait = retryAfter != null ? ' (riprova tra ${retryAfter}s)' : '';
+        return 'Limite richieste raggiunto$wait. Aspetta un momento e riprova.';
+      }
       if (response.statusCode != 200) {
         return 'Errore Groq: ${data['error']?['message'] ?? response.statusCode}';
       }
@@ -130,11 +130,81 @@ class GroqProvider implements LLMProvider {
     required List<Message> messages,
     required LLMRequestConfig config,
   }) async* {
-    yield await sendMessage(
-      modelId: modelId,
-      messages: messages,
-      config: config,
-    );
+    final apiKey = dotenv.env['GROQ_API_KEY'];
+    if (apiKey == null || apiKey.isEmpty) {
+      yield 'Nessuna API key Groq trovata. Aggiungila nel file .env.';
+      return;
+    }
+    if (isClientSideProviderBlockedInProduction()) {
+      yield blockedClientProviderMessage(label);
+      return;
+    }
+
+    final request = http.Request('POST', Uri.parse(_baseUrl))
+      ..headers.addAll({
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $apiKey',
+      })
+      ..body = jsonEncode({
+        'model': modelId,
+        'stream': true,
+        'temperature': config.temperature,
+        'top_p': config.topP,
+        'max_tokens': config.maxTokens,
+        'messages': [
+          {'role': 'system', 'content': _systemPrompt(config)},
+          ...messages.map((m) => {'role': m.role, 'content': m.content}),
+        ],
+      });
+
+    http.Client? client;
+    try {
+      client = http.Client();
+      final streamed = await client
+          .send(request)
+          .timeout(const Duration(seconds: 30));
+      if (streamed.statusCode == 429) {
+        final retryAfter = streamed.headers['retry-after'];
+        final wait = retryAfter != null ? ' (riprova tra ${retryAfter}s)' : '';
+        yield 'Limite richieste raggiunto$wait. Aspetta un momento e riprova.';
+        return;
+      }
+      if (streamed.statusCode >= 400) {
+        final errorBody = await streamed.stream.bytesToString();
+        try {
+          final data = jsonDecode(errorBody);
+          yield 'Errore Groq: ${data['error']?['message'] ?? streamed.statusCode}';
+        } catch (_) {
+          yield 'Errore Groq: ${errorBody.isEmpty ? streamed.statusCode : errorBody}';
+        }
+        return;
+      }
+      final buffer = StringBuffer();
+      await for (final chunk in streamed.stream) {
+        buffer.write(utf8.decode(chunk));
+        final text = buffer.toString();
+        final lines = text.split('\n');
+        buffer.clear();
+        if (!text.endsWith('\n')) {
+          buffer.write(lines.removeLast());
+        }
+        for (final line in lines) {
+          final trimmed = line.trim();
+          if (!trimmed.startsWith('data:')) continue;
+          final data = trimmed.substring(5).trim();
+          if (data == '[DONE]') return;
+          final jsonData = jsonDecode(data);
+          final delta = jsonData['choices']?[0]?['delta']?['content'];
+          if (delta is String && delta.isNotEmpty) {
+            yield delta;
+          }
+        }
+      }
+    } catch (e) {
+      yield 'Errore di rete: $e';
+    } finally {
+      client?.close();
+    }
   }
 
   @override
@@ -165,7 +235,8 @@ class GroqProvider implements LLMProvider {
           ],
           'max_tokens': 20,
         }),
-      );
+      )
+      .timeout(const Duration(seconds: 15));
 
       final data = jsonDecode(response.body);
       return data['choices']?[0]?['message']?['content']?.trim();

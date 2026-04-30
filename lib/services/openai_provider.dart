@@ -31,10 +31,12 @@ class OpenAIProvider implements LLMProvider {
     if (isClientSideProviderBlockedInProduction()) return models;
 
     try {
-      final response = await http.get(
-        Uri.parse(_modelsUrl),
-        headers: {"Authorization": "Bearer $apiKey"},
-      );
+      final response = await http
+          .get(
+            Uri.parse(_modelsUrl),
+            headers: {"Authorization": "Bearer $apiKey"},
+          )
+          .timeout(const Duration(seconds: 15));
       final data = jsonDecode(response.body);
       if (response.statusCode != 200 || data is! Map<String, dynamic>) {
         return models;
@@ -76,25 +78,32 @@ class OpenAIProvider implements LLMProvider {
     }
 
     try {
-      final response = await http.post(
-        Uri.parse(_baseUrl),
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer $apiKey",
-        },
-        body: jsonEncode({
-          "model": modelId,
-          "temperature": config.temperature,
-          "top_p": config.topP,
-          "max_tokens": config.maxTokens,
-          "messages": [
-            {"role": "system", "content": _systemPrompt(config)},
-            ...messages.map((m) => {"role": m.role, "content": m.content}),
-          ],
-        }),
-      );
+      final response = await http
+          .post(
+            Uri.parse(_baseUrl),
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": "Bearer $apiKey",
+            },
+            body: jsonEncode({
+              "model": modelId,
+              "temperature": config.temperature,
+              "top_p": config.topP,
+              "max_tokens": config.maxTokens,
+              "messages": [
+                {"role": "system", "content": _systemPrompt(config)},
+                ...messages.map((m) => {"role": m.role, "content": m.content}),
+              ],
+            }),
+          )
+          .timeout(const Duration(seconds: 60));
 
       final data = jsonDecode(response.body);
+      if (response.statusCode == 429) {
+        final retryAfter = response.headers['retry-after'];
+        final wait = retryAfter != null ? ' (riprova tra ${retryAfter}s)' : '';
+        return "Limite richieste raggiunto$wait. Aspetta un momento e riprova.";
+      }
       if (response.statusCode != 200) {
         return "Errore OpenAI: ${data['error']?['message'] ?? response.statusCode}";
       }
@@ -142,7 +151,15 @@ class OpenAIProvider implements LLMProvider {
     http.Client? client;
     try {
       client = http.Client();
-      final streamed = await client.send(request);
+      final streamed = await client
+          .send(request)
+          .timeout(const Duration(seconds: 30));
+      if (streamed.statusCode == 429) {
+        final retryAfter = streamed.headers['retry-after'];
+        final wait = retryAfter != null ? ' (riprova tra ${retryAfter}s)' : '';
+        yield "Limite richieste raggiunto$wait. Aspetta un momento e riprova.";
+        return;
+      }
       if (streamed.statusCode >= 400) {
         final errorBody = await streamed.stream.bytesToString();
         try {
@@ -191,25 +208,27 @@ class OpenAIProvider implements LLMProvider {
     if (isClientSideProviderBlockedInProduction()) return null;
 
     try {
-      final response = await http.post(
-        Uri.parse(_baseUrl),
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer $apiKey",
-        },
-        body: jsonEncode({
-          "model": modelId,
-          "messages": [
-            {
-              "role": "system",
-              "content":
-                  "Genera solo un titolo naturale di 3-5 parole per una chat. Usa il tema concreto emerso nella prima risposta, non riformulare la richiesta generica dell’utente. Evita titoli vaghi come \"dimmi qualcosa interessante\". Niente virgolette, niente emoji, niente punteggiatura finale.",
+      final response = await http
+          .post(
+            Uri.parse(_baseUrl),
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": "Bearer $apiKey",
             },
-            {"role": "user", "content": firstMessage},
-          ],
-          "max_tokens": 20,
-        }),
-      );
+            body: jsonEncode({
+              "model": modelId,
+              "messages": [
+                {
+                  "role": "system",
+                  "content":
+                      "Genera solo un titolo naturale di 3-5 parole per una chat. Usa il tema concreto emerso nella prima risposta, non riformulare la richiesta generica dell’utente. Evita titoli vaghi come \"dimmi qualcosa interessante\". Niente virgolette, niente emoji, niente punteggiatura finale.",
+                },
+                {"role": "user", "content": firstMessage},
+              ],
+              "max_tokens": 20,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
 
       final data = jsonDecode(response.body);
       return data["choices"]?[0]?["message"]?["content"]?.trim();

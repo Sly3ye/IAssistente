@@ -3,7 +3,13 @@ import '../models/message.dart';
 int estimateTokensFromText(String text) {
   final trimmed = text.trim();
   if (trimmed.isEmpty) return 0;
-  return ((trimmed.length / 4).ceil()).clamp(1, 1000000);
+  // Word-based estimate: ~1.3 tokens/word for Italian/English prose.
+  // Penalize non-ASCII characters (accents, special chars) that BPE splits.
+  final words = trimmed.split(RegExp(r'\s+'));
+  final wordTokens = (words.length * 1.3).ceil();
+  final nonAscii = trimmed.runes.where((r) => r > 127).length;
+  final extraTokens = (nonAscii * 0.3).ceil();
+  return (wordTokens + extraTokens).clamp(1, 1000000);
 }
 
 int estimateTokensFromMessages(List<Message> messages) {

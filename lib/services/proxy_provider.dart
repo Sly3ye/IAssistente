@@ -28,10 +28,12 @@ class ProxyProvider implements LLMProvider {
 
     final modelsUrl = baseUrl.replaceAll('/v1/chat', '/v1/models');
     try {
-      final response = await http.get(
-        Uri.parse(modelsUrl),
-        headers: _requestHeaders(),
-      );
+      final response = await http
+          .get(
+            Uri.parse(modelsUrl),
+            headers: _requestHeaders(),
+          )
+          .timeout(const Duration(seconds: 15));
       final data = jsonDecode(response.body);
       final rows = data['models'];
       if (rows is! List) return models;
@@ -69,25 +71,32 @@ class ProxyProvider implements LLMProvider {
     }
 
     try {
-      final response = await http.post(
-        Uri.parse(baseUrl),
-        headers: _requestHeaders(),
-        body: jsonEncode({
-          "provider": provider,
-          "model": modelId,
-          "messages": messages
-              .map((m) => {"role": m.role, "content": m.content})
-              .toList(),
-          "config": {
-            "systemPrompt": config.systemPrompt,
-            "temperature": config.temperature,
-            "maxTokens": config.maxTokens,
-            "topP": config.topP,
-          },
-        }),
-      );
+      final response = await http
+          .post(
+            Uri.parse(baseUrl),
+            headers: _requestHeaders(),
+            body: jsonEncode({
+              "provider": provider,
+              "model": modelId,
+              "messages": messages
+                  .map((m) => {"role": m.role, "content": m.content})
+                  .toList(),
+              "config": {
+                "systemPrompt": config.systemPrompt,
+                "temperature": config.temperature,
+                "maxTokens": config.maxTokens,
+                "topP": config.topP,
+              },
+            }),
+          )
+          .timeout(const Duration(seconds: 60));
 
       final data = jsonDecode(response.body);
+      if (response.statusCode == 429) {
+        final retryAfter = response.headers['retry-after'];
+        final wait = retryAfter != null ? ' (riprova tra ${retryAfter}s)' : '';
+        return "Limite richieste raggiunto$wait. Aspetta un momento e riprova.";
+      }
       if (response.statusCode >= 400) {
         return "Errore Proxy: ${data['error'] ?? response.statusCode}";
       }
@@ -119,10 +128,7 @@ class ProxyProvider implements LLMProvider {
     }
 
     final request = http.Request("POST", Uri.parse(baseUrl))
-      ..headers.addAll({
-        ..._requestHeaders(),
-        "Accept": "text/event-stream",
-      })
+      ..headers.addAll({..._requestHeaders(), "Accept": "text/event-stream"})
       ..body = jsonEncode({
         "provider": provider,
         "model": modelId,
@@ -141,7 +147,15 @@ class ProxyProvider implements LLMProvider {
     http.Client? client;
     try {
       client = http.Client();
-      final streamed = await client.send(request);
+      final streamed = await client
+          .send(request)
+          .timeout(const Duration(seconds: 30));
+      if (streamed.statusCode == 429) {
+        final retryAfter = streamed.headers['retry-after'];
+        final wait = retryAfter != null ? ' (riprova tra ${retryAfter}s)' : '';
+        yield "Limite richieste raggiunto$wait. Aspetta un momento e riprova.";
+        return;
+      }
       if (streamed.statusCode >= 400) {
         final errorBody = await streamed.stream.bytesToString();
         try {

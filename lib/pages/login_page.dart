@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../l10n/app_strings.dart';
 import '../providers/app_providers.dart';
@@ -14,6 +15,7 @@ class LoginPage extends ConsumerStatefulWidget {
 class _LoginPageState extends ConsumerState<LoginPage> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
+  final _passwordFocus = FocusNode();
   bool isRegister = false;
   bool isLoading = false;
   bool passwordVisible = false;
@@ -23,6 +25,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   void dispose() {
     emailController.dispose();
     passwordController.dispose();
+    _passwordFocus.dispose();
     super.dispose();
   }
 
@@ -86,9 +89,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
     final messenger = ScaffoldMessenger.of(context);
     await _withLoading(() async {
-      await ref
-          .read(authServiceProvider)
-          .sendPasswordResetEmail(email: email);
+      await ref.read(authServiceProvider).sendPasswordResetEmail(email: email);
       await ref
           .read(observabilityServiceProvider)
           .logEvent('auth_password_reset_requested');
@@ -106,7 +107,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     await _withLoading(() async {
       await auth.signInWithGoogle();
       await chatController.handleAuthStateChanged();
-      await ref.read(observabilityServiceProvider).logEvent('auth_login_google');
+      await ref
+          .read(observabilityServiceProvider)
+          .logEvent('auth_login_google');
     });
   }
 
@@ -121,9 +124,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   Future<void> _showAlternativeAccess() async {
+    final strings = AppStrings.ofCode(
+      ref.read(chatControllerProvider).preferredLanguageCode,
+    );
     await showModalBottomSheet<void>(
       context: context,
-      backgroundColor: const Color(0xFFFDFBF6),
+      backgroundColor: Theme.of(context).cardColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
       ),
@@ -148,14 +154,20 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Alternative access',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
+                  strings.pick(
+                    it: 'Accesso alternativo',
+                    en: 'Alternative access',
                   ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Use a federated provider if your workspace is linked externally.',
+                  strings.pick(
+                    it: 'Usa Google o Apple se preferisci non accedere con email e password.',
+                    en: 'Use Google or Apple if you prefer not to sign in with email and password.',
+                  ),
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 18),
@@ -169,7 +181,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             _signInGoogle();
                           },
                     icon: const Icon(Icons.g_mobiledata, size: 26),
-                    label: const Text('Continue with Google'),
+                    label: Text(strings.continueWithGoogle),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -183,7 +195,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             _signInApple();
                           },
                     icon: const Icon(Icons.apple, size: 18),
-                    label: const Text('Continue with Apple'),
+                    label: Text(strings.continueWithApple),
                   ),
                 ),
               ],
@@ -204,7 +216,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
     return Scaffold(
       body: Container(
-        color: const Color(0xFFFCF9F2),
+        color: Theme.of(context).scaffoldBackgroundColor,
         child: SafeArea(
           child: ListView(
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -221,7 +233,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               ),
               SizedBox(height: keyboardOpen ? 24 : 44),
               Text(
-                isRegister ? strings.createAccount : 'Enter your workspace',
+                isRegister
+                    ? strings.createAccount
+                    : strings.pick(
+                        it: 'Accedi a Mimir',
+                        en: 'Sign in to Mimir',
+                      ),
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   fontSize: 24,
                   fontWeight: FontWeight.w700,
@@ -231,7 +248,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               if (!isRegister && !keyboardOpen) ...[
                 const SizedBox(height: 8),
                 Text(
-                  'Use your credentials to access profile, history, settings, and premium controls.',
+                  strings.pick(
+                    it: 'Accedi per ritrovare profilo, cronologia, documenti e impostazioni.',
+                    en: 'Sign in to access profile, history, documents, and settings.',
+                  ),
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: const Color(0xFF666A63),
                   ),
@@ -239,19 +259,26 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               ],
               const SizedBox(height: 40),
               _LedgerField(
-                label: 'WORK EMAIL',
+                label: strings.emailFieldLabel,
                 controller: emailController,
                 icon: Icons.mail_outline_rounded,
                 hintText: 'architect@domain.com',
                 keyboardType: TextInputType.emailAddress,
+                autofocus: true,
+                textInputAction: TextInputAction.next,
+                onEditingComplete: () =>
+                    FocusScope.of(context).requestFocus(_passwordFocus),
               ),
               const SizedBox(height: 20),
               _LedgerField(
-                label: 'PASSCODE',
+                label: strings.passwordFieldLabel,
                 controller: passwordController,
+                focusNode: _passwordFocus,
                 icon: Icons.key_rounded,
                 hintText: '........',
                 obscureText: !passwordVisible,
+                textInputAction: TextInputAction.done,
+                onEditingComplete: isLoading ? null : _submitEmail,
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -263,7 +290,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           minimumSize: Size.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
-                        child: const Text('Recover'),
+                        child: Text(
+                          strings.pick(it: 'Recupera', en: 'Recover'),
+                        ),
                       ),
                     IconButton(
                       onPressed: () =>
@@ -311,7 +340,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       : Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(isRegister ? strings.register : 'Sign In'),
+                            Text(isRegister ? strings.register : strings.login),
                             const SizedBox(width: 8),
                             const Icon(Icons.arrow_forward_rounded, size: 18),
                           ],
@@ -327,7 +356,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   child: Text(
                     isRegister
                         ? strings.alreadyHaveAccount
-                        : 'Create an Account',
+                        : strings.createAccount,
                     style: const TextStyle(
                       color: Color(0xFF595D57),
                       fontWeight: FontWeight.w600,
@@ -339,9 +368,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 Center(
                   child: TextButton(
                     onPressed: isLoading ? null : _showAlternativeAccess,
-                    child: const Text(
-                      'Alternative sign-in methods',
-                      style: TextStyle(
+                    child: Text(
+                      strings.pick(
+                        it: 'Altri metodi di accesso',
+                        en: 'Alternative sign-in methods',
+                      ),
+                      style: const TextStyle(
                         color: Color(0xFF767A73),
                         fontWeight: FontWeight.w600,
                       ),
@@ -349,12 +381,49 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   ),
                 ),
               SizedBox(height: keyboardOpen ? 28 : 88),
-              Text(
-                'V 2.4.0 • CORE SYSTEM',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: const Color(0xFF8F928B),
-                  letterSpacing: 1.1,
-                ),
+              Wrap(
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(
+                    '${strings.bySigningIn} ',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: const Color(0xFF8F928B),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => launchUrl(
+                      Uri.parse('https://mimir.app/privacy'),
+                      mode: LaunchMode.externalApplication,
+                    ),
+                    child: Text(
+                      strings.privacyPolicyLink,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: const Color(0xFF8F928B),
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    ' ${strings.and} ',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: const Color(0xFF8F928B),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => launchUrl(
+                      Uri.parse('https://mimir.app/terms'),
+                      mode: LaunchMode.externalApplication,
+                    ),
+                    child: Text(
+                      strings.termsLink,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: const Color(0xFF8F928B),
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -370,17 +439,25 @@ class _LedgerField extends StatelessWidget {
     required this.controller,
     required this.icon,
     required this.hintText,
+    this.focusNode,
     this.keyboardType,
     this.obscureText = false,
+    this.autofocus = false,
+    this.textInputAction,
+    this.onEditingComplete,
     this.trailing,
   });
 
   final String label;
   final TextEditingController controller;
+  final FocusNode? focusNode;
   final IconData icon;
   final String hintText;
   final TextInputType? keyboardType;
   final bool obscureText;
+  final bool autofocus;
+  final TextInputAction? textInputAction;
+  final VoidCallback? onEditingComplete;
   final Widget? trailing;
 
   @override
@@ -399,9 +476,7 @@ class _LedgerField extends StatelessWidget {
         const SizedBox(height: 8),
         Container(
           decoration: const BoxDecoration(
-            border: Border(
-              bottom: BorderSide(color: Color(0xFFE0DCCF)),
-            ),
+            border: Border(bottom: BorderSide(color: Color(0xFFE0DCCF))),
           ),
           child: Row(
             children: [
@@ -412,8 +487,12 @@ class _LedgerField extends StatelessWidget {
               Expanded(
                 child: TextField(
                   controller: controller,
+                  focusNode: focusNode,
                   keyboardType: keyboardType,
                   obscureText: obscureText,
+                  autofocus: autofocus,
+                  textInputAction: textInputAction,
+                  onEditingComplete: onEditingComplete,
                   decoration: const InputDecoration(
                     isDense: true,
                     filled: false,

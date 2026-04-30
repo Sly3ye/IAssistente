@@ -81,12 +81,19 @@ class GeminiProvider implements LLMProvider {
     }
 
     try {
-      final response = await http.post(
-        Uri.parse("$_baseUrl$modelId:generateContent"),
-        headers: _headers(apiKey),
-        body: jsonEncode(_requestBody(messages, config)),
-      );
+      final response = await http
+          .post(
+            Uri.parse("$_baseUrl$modelId:generateContent"),
+            headers: _headers(apiKey),
+            body: jsonEncode(_requestBody(messages, config)),
+          )
+          .timeout(const Duration(seconds: 60));
       final data = jsonDecode(response.body);
+      if (response.statusCode == 429) {
+        final retryAfter = response.headers['retry-after'];
+        final wait = retryAfter != null ? ' (riprova tra ${retryAfter}s)' : '';
+        return "Limite richieste raggiunto$wait. Aspetta un momento e riprova.";
+      }
       if (response.statusCode != 200) {
         return "Errore Gemini: ${data['error']?['message'] ?? response.statusCode}";
       }
@@ -137,7 +144,25 @@ class GeminiProvider implements LLMProvider {
     http.Client? client;
     try {
       client = http.Client();
-      final streamed = await client.send(request);
+      final streamed = await client
+          .send(request)
+          .timeout(const Duration(seconds: 30));
+      if (streamed.statusCode == 429) {
+        final retryAfter = streamed.headers['retry-after'];
+        final wait = retryAfter != null ? ' (riprova tra ${retryAfter}s)' : '';
+        yield "Limite richieste raggiunto$wait. Aspetta un momento e riprova.";
+        return;
+      }
+      if (streamed.statusCode >= 400) {
+        final errorBody = await streamed.stream.bytesToString();
+        try {
+          final data = jsonDecode(errorBody);
+          yield "Errore Gemini: ${data['error']?['message'] ?? streamed.statusCode}";
+        } catch (_) {
+          yield "Errore Gemini: ${errorBody.isEmpty ? streamed.statusCode : errorBody}";
+        }
+        return;
+      }
       final buffer = StringBuffer();
       await for (final chunk in streamed.stream) {
         buffer.write(utf8.decode(chunk));
@@ -206,7 +231,8 @@ class GeminiProvider implements LLMProvider {
           ],
           "generationConfig": {"maxOutputTokens": 20},
         }),
-      );
+      )
+      .timeout(const Duration(seconds: 15));
       final data = jsonDecode(response.body);
       final candidates = data["candidates"];
       if (candidates is List && candidates.isNotEmpty) {

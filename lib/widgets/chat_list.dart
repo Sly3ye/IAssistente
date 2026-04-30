@@ -74,7 +74,9 @@ class ChatList extends ConsumerWidget {
                   vertical: 10,
                 ),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1D2523) : const Color(0xFFFFFBF4),
+                  color: isDark
+                      ? const Color(0xFF1D2523)
+                      : const Color(0xFFFFFBF4),
                   borderRadius: BorderRadius.circular(18),
                   border: Border.all(color: theme.dividerColor),
                 ),
@@ -141,6 +143,7 @@ class ChatList extends ConsumerWidget {
             en: 'Read reply',
           ),
           copiedMessage: strings.textCopied,
+          errorLabel: strings.errorBadge,
           sourcesTitle:
               message.role == "assistant" &&
                   latestAssistantSources.isNotEmpty &&
@@ -165,7 +168,9 @@ class ChatList extends ConsumerWidget {
                     .retryFromAssistant(message)
               : null,
           onReadAloud:
-              message.role == "assistant" && !message.isStreaming && onReadAloud != null
+              message.role == "assistant" &&
+                  !message.isStreaming &&
+                  onReadAloud != null
               ? () => onReadAloud!(message)
               : null,
         );

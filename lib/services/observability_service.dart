@@ -75,12 +75,7 @@ class ObservabilityService {
     bool fatal = false,
   }) async {
     if (_crashlytics == null) return;
-    await _crashlytics.recordError(
-      error,
-      stack,
-      reason: reason,
-      fatal: fatal,
-    );
+    await _crashlytics.recordError(error, stack, reason: reason, fatal: fatal);
   }
 
   Map<String, Object> _sanitizeAnalyticsParameters(

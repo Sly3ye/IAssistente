@@ -12,10 +12,7 @@ void main() {
     });
 
     expect(diagnostics.hasErrors, isTrue);
-    expect(
-      diagnostics.errors.first,
-      contains('Missing LLM configuration'),
-    );
+    expect(diagnostics.errors.first, contains('Missing LLM configuration'));
   });
 
   test('development allows local-only setup with warning', () {

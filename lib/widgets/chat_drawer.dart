@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../controllers/chat_controller.dart';
 import '../l10n/app_strings.dart';
 import '../models/chat.dart';
 import '../pages/account_page.dart';
+import '../pages/chat_page.dart';
 import '../pages/diet_agent_page.dart';
 import '../pages/legal_agent_page.dart';
 import '../pages/memory_page.dart';
@@ -14,8 +16,17 @@ import '../pages/rag_documents_page.dart';
 import '../providers/app_providers.dart';
 import '../services/dev_options.dart';
 
+enum ChatDrawerSection { home, chat }
+
 class ChatDrawer extends ConsumerStatefulWidget {
-  const ChatDrawer({super.key});
+  const ChatDrawer({
+    super.key,
+    this.activeSection = ChatDrawerSection.chat,
+    this.onNewChat,
+  });
+
+  final ChatDrawerSection activeSection;
+  final Future<void> Function()? onNewChat;
 
   @override
   ConsumerState<ChatDrawer> createState() => _ChatDrawerState();
@@ -23,6 +34,15 @@ class ChatDrawer extends ConsumerStatefulWidget {
 
 class _ChatDrawerState extends ConsumerState<ChatDrawer> {
   Offset? _tapPosition;
+  String _version = '';
+
+  @override
+  void initState() {
+    super.initState();
+    PackageInfo.fromPlatform().then((info) {
+      if (mounted) setState(() => _version = info.version);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,8 +54,9 @@ class _ChatDrawerState extends ConsumerState<ChatDrawer> {
 
     final chats = _sortedChats(state.chats, state.pinnedChatIds);
 
+    final screenWidth = MediaQuery.of(context).size.width;
     return Drawer(
-      width: 318,
+      width: screenWidth < 400 ? screenWidth * 0.88 : 318,
       backgroundColor: theme.scaffoldBackgroundColor,
       child: SafeArea(
         child: Column(
@@ -95,8 +116,14 @@ class _ChatDrawerState extends ConsumerState<ChatDrawer> {
                               const SizedBox(height: 2),
                               Text(
                                 state.isPremium
-                                    ? 'Professional Tier'
-                                    : 'Core Plan',
+                                    ? strings.pick(
+                                        it: 'Piano Pro',
+                                        en: 'Pro plan',
+                                      )
+                                    : strings.pick(
+                                        it: 'Piano base',
+                                        en: 'Base plan',
+                                      ),
                                 style: Theme.of(context).textTheme.bodySmall
                                     ?.copyWith(
                                       color: theme.textTheme.bodySmall?.color,
@@ -109,13 +136,26 @@ class _ChatDrawerState extends ConsumerState<ChatDrawer> {
                     ),
                   ),
                   const SizedBox(height: 14),
-                  FilledButton.icon(
-                    onPressed: () {
-                      ref.read(chatControllerProvider.notifier).newChat();
+                  _DrawerNavTile(
+                    icon: Icons.home_outlined,
+                    label: strings.pick(it: 'Home', en: 'Home'),
+                    isSelected: widget.activeSection == ChatDrawerSection.home,
+                    onTap: () {
                       Navigator.pop(context);
+                      Navigator.of(context).popUntil((route) => route.isFirst);
+                    },
+                  ),
+                  FilledButton.icon(
+                    onPressed: () async {
+                      Navigator.pop(context);
+                      if (widget.onNewChat != null) {
+                        await widget.onNewChat!();
+                        return;
+                      }
+                      await ref.read(chatControllerProvider.notifier).newChat();
                     },
                     icon: const Icon(Icons.add_rounded),
-                    label: const Text('New Conversation'),
+                    label: Text(strings.newChat),
                     style: FilledButton.styleFrom(
                       backgroundColor: theme.colorScheme.primary,
                       minimumSize: const Size.fromHeight(52),
@@ -126,45 +166,76 @@ class _ChatDrawerState extends ConsumerState<ChatDrawer> {
                   const SizedBox(height: 14),
                   _DrawerNavTile(
                     icon: Icons.history_rounded,
-                    label: 'Chat History',
-                    isSelected: true,
+                    label: strings.pick(it: 'Cronologia', en: 'History'),
+                    isSelected: widget.activeSection == ChatDrawerSection.chat,
                     onTap: () {},
                   ),
                   _DrawerNavTile(
                     icon: Icons.restaurant_menu_rounded,
-                    label: 'Agente dieta',
+                    label: strings.pick(it: 'Dieta', en: 'Diet'),
                     onTap: () async {
                       Navigator.pop(context);
+                      final started = await Navigator.of(context).push<bool>(
+                        MaterialPageRoute(
+                          builder: (_) => const DietAgentPage(),
+                        ),
+                      );
+                      if (!context.mounted ||
+                          started != true ||
+                          widget.activeSection != ChatDrawerSection.home) {
+                        return;
+                      }
                       await Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const DietAgentPage()),
+                        MaterialPageRoute(builder: (_) => const ChatPage()),
                       );
                     },
                   ),
                   _DrawerNavTile(
                     icon: Icons.medical_services_outlined,
-                    label: 'Medico di base',
+                    label: strings.pick(
+                      it: 'Medico di base',
+                      en: 'General practitioner',
+                    ),
                     onTap: () async {
                       Navigator.pop(context);
-                      await Navigator.of(context).push(
+                      final started = await Navigator.of(context).push<bool>(
                         MaterialPageRoute(
                           builder: (_) => const MedicalAgentPage(),
                         ),
+                      );
+                      if (!context.mounted ||
+                          started != true ||
+                          widget.activeSection != ChatDrawerSection.home) {
+                        return;
+                      }
+                      await Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const ChatPage()),
                       );
                     },
                   ),
                   _DrawerNavTile(
                     icon: Icons.gavel_rounded,
-                    label: 'Avvocato',
+                    label: strings.pick(it: 'Avvocato', en: 'Lawyer'),
                     onTap: () async {
                       Navigator.pop(context);
+                      final started = await Navigator.of(context).push<bool>(
+                        MaterialPageRoute(
+                          builder: (_) => const LegalAgentPage(),
+                        ),
+                      );
+                      if (!context.mounted ||
+                          started != true ||
+                          widget.activeSection != ChatDrawerSection.home) {
+                        return;
+                      }
                       await Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const LegalAgentPage()),
+                        MaterialPageRoute(builder: (_) => const ChatPage()),
                       );
                     },
                   ),
                   _DrawerNavTile(
                     icon: Icons.psychology_alt_outlined,
-                    label: 'Memoria utente',
+                    label: strings.pick(it: 'Memoria', en: 'Memory'),
                     onTap: () async {
                       Navigator.pop(context);
                       await Navigator.of(context).push(
@@ -174,13 +245,24 @@ class _ChatDrawerState extends ConsumerState<ChatDrawer> {
                   ),
                   _DrawerNavTile(
                     icon: Icons.dataset_linked_outlined,
-                    label: 'Documenti RAG',
+                    label: strings.pick(
+                      it: 'Documenti personali',
+                      en: 'Personal documents',
+                    ),
                     onTap: () async {
                       Navigator.pop(context);
-                      await Navigator.of(context).push(
+                      final openedChat = await Navigator.of(context).push<bool>(
                         MaterialPageRoute(
                           builder: (_) => const RagDocumentsPage(),
                         ),
+                      );
+                      if (!context.mounted ||
+                          openedChat != true ||
+                          widget.activeSection != ChatDrawerSection.home) {
+                        return;
+                      }
+                      await Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const ChatPage()),
                       );
                     },
                   ),
@@ -197,13 +279,18 @@ class _ChatDrawerState extends ConsumerState<ChatDrawer> {
                         chat: chat,
                         isSelected: state.currentChat?.id == chat.id,
                         isPinned: state.pinnedChatIds.contains(chat.id),
-                        subtitle: _formatDate(chat.updatedAt),
+                        subtitle:
+                            '${_chatKindLabel(chat.kind, strings)} / ${_formatDate(chat.updatedAt)}',
                         onTap: () {
-                          ref.read(chatControllerProvider.notifier).loadChat(chat.id);
+                          ref
+                              .read(chatControllerProvider.notifier)
+                              .loadChat(chat.id);
                           Navigator.pop(context);
                         },
-                        onTapDown: (details) => _tapPosition = details.globalPosition,
-                        onLongPress: () => _showChatMenu(context, chat, strings),
+                        onTapDown: (details) =>
+                            _tapPosition = details.globalPosition,
+                        onLongPress: () =>
+                            _showChatMenu(context, chat, strings),
                       )
                   else
                     Padding(
@@ -219,10 +306,10 @@ class _ChatDrawerState extends ConsumerState<ChatDrawer> {
             Container(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF121816) : const Color(0xFFF7F3EA),
-                border: Border(
-                  top: BorderSide(color: theme.dividerColor),
-                ),
+                color: isDark
+                    ? const Color(0xFF121816)
+                    : const Color(0xFFF7F3EA),
+                border: Border(top: BorderSide(color: theme.dividerColor)),
               ),
               child: Column(
                 children: [
@@ -273,7 +360,15 @@ class _ChatDrawerState extends ConsumerState<ChatDrawer> {
                                     ?.copyWith(fontWeight: FontWeight.w700),
                               ),
                               Text(
-                                state.isPremium ? 'Pro Plan' : 'Core Plan',
+                                state.isPremium
+                                    ? strings.pick(
+                                        it: 'Piano Pro',
+                                        en: 'Pro plan',
+                                      )
+                                    : strings.pick(
+                                        it: 'Piano base',
+                                        en: 'Base plan',
+                                      ),
                                 style: Theme.of(context).textTheme.bodySmall,
                               ),
                             ],
@@ -316,7 +411,7 @@ class _ChatDrawerState extends ConsumerState<ChatDrawer> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'Mimir v2.4.0',
+                      _version.isEmpty ? 'Mimir' : 'Mimir v$_version',
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         color: theme.textTheme.bodySmall?.color,
                       ),
@@ -352,7 +447,9 @@ class _ChatDrawerState extends ConsumerState<ChatDrawer> {
         PopupMenuItem(
           value: 'pin',
           child: Text(
-            state.pinnedChatIds.contains(chat.id) ? 'Rimuovi fissa' : 'Fissa',
+            state.pinnedChatIds.contains(chat.id)
+                ? strings.unpinChat
+                : strings.pinChat,
           ),
         ),
         PopupMenuItem(value: 'rename', child: Text(strings.rename)),
@@ -366,7 +463,29 @@ class _ChatDrawerState extends ConsumerState<ChatDrawer> {
     } else if (action == 'rename') {
       _showRenameDialog(context, chat, strings);
     } else if (action == 'delete') {
-      ref.read(chatControllerProvider.notifier).deleteChat(chat);
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(strings.deleteChatConfirmTitle),
+          content: Text(strings.deleteChatConfirmBody),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(strings.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(ctx).colorScheme.error,
+              ),
+              child: Text(strings.delete),
+            ),
+          ],
+        ),
+      );
+      if (confirm == true && context.mounted) {
+        ref.read(chatControllerProvider.notifier).deleteChat(chat);
+      }
     }
   }
 
@@ -382,11 +501,7 @@ class _ChatDrawerState extends ConsumerState<ChatDrawer> {
     return sorted;
   }
 
-  void _showRenameDialog(
-    BuildContext context,
-    Chat chat,
-    AppStrings strings,
-  ) {
+  void _showRenameDialog(BuildContext context, Chat chat, AppStrings strings) {
     final controllerText = TextEditingController(text: chat.title);
     showDialog(
       context: context,
@@ -406,7 +521,9 @@ class _ChatDrawerState extends ConsumerState<ChatDrawer> {
               onPressed: () {
                 final name = controllerText.text.trim();
                 if (name.isNotEmpty) {
-                  ref.read(chatControllerProvider.notifier).renameChat(chat, name);
+                  ref
+                      .read(chatControllerProvider.notifier)
+                      .renameChat(chat, name);
                 }
                 Navigator.pop(context);
               },
@@ -433,13 +550,26 @@ class _ChatDrawerState extends ConsumerState<ChatDrawer> {
   }
 
   String _formatDate(DateTime date) {
+    final state = ref.read(chatControllerProvider);
+    final strings = AppStrings.ofCode(state.preferredLanguageCode);
     final now = DateTime.now();
-    if (date.year == now.year && date.month == now.month && date.day == now.day) {
-      return 'Today';
+    if (date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day) {
+      return strings.pick(it: 'Oggi', en: 'Today');
     }
     final day = date.day.toString().padLeft(2, '0');
     final month = date.month.toString().padLeft(2, '0');
     return '$day/$month';
+  }
+
+  String _chatKindLabel(String kind, AppStrings strings) {
+    return switch (kind) {
+      Chat.kindDiet => strings.pick(it: 'Dieta', en: 'Diet'),
+      Chat.kindMedical => strings.pick(it: 'Medico', en: 'Medical'),
+      Chat.kindLegal => strings.pick(it: 'Legale', en: 'Legal'),
+      _ => strings.pick(it: 'Chat', en: 'Chat'),
+    };
   }
 }
 
@@ -463,15 +593,11 @@ class _DrawerNavTile extends StatelessWidget {
       onTap: onTap,
       dense: true,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      tileColor: isSelected
-          ? theme.colorScheme.surfaceContainerHighest
-          : null,
+      tileColor: isSelected ? theme.colorScheme.surfaceContainerHighest : null,
       leading: Icon(
         icon,
         size: 20,
-        color: isSelected
-            ? theme.colorScheme.onSurface
-            : theme.iconTheme.color,
+        color: isSelected ? theme.colorScheme.onSurface : theme.iconTheme.color,
       ),
       title: Text(
         label,
@@ -518,7 +644,7 @@ class _ChatTile extends StatelessWidget {
             ? theme.colorScheme.surfaceContainerHighest
             : null,
         leading: Icon(
-          isPinned ? Icons.push_pin_rounded : Icons.chat_bubble_outline_rounded,
+          isPinned ? Icons.push_pin_rounded : _iconForKind(chat.kind),
           size: 16,
           color: isPinned ? const Color(0xFFC69A46) : theme.disabledColor,
         ),
@@ -526,9 +652,9 @@ class _ChatTile extends StatelessWidget {
           chat.title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
         ),
         subtitle: Text(
           subtitle,
@@ -540,5 +666,14 @@ class _ChatTile extends StatelessWidget {
         onLongPress: onLongPress,
       ),
     );
+  }
+
+  IconData _iconForKind(String kind) {
+    return switch (kind) {
+      Chat.kindDiet => Icons.restaurant_menu_rounded,
+      Chat.kindMedical => Icons.medical_services_outlined,
+      Chat.kindLegal => Icons.gavel_rounded,
+      _ => Icons.chat_bubble_outline_rounded,
+    };
   }
 }

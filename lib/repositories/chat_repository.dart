@@ -42,6 +42,7 @@ class ChatRepository {
 
   Future<chat_model.Chat> createChat({
     required String title,
+    String kind = chat_model.Chat.kindGeneral,
     required String providerId,
     required String modelId,
     required String systemPrompt,
@@ -57,6 +58,7 @@ class ChatRepository {
           db.ChatsCompanion.insert(
             id: id,
             title: title,
+            kind: Value(_normalizeKind(kind)),
             createdAt: now,
             updatedAt: now,
             providerId: providerId,
@@ -70,6 +72,7 @@ class ChatRepository {
     return chat_model.Chat(
       id: id,
       title: title,
+      kind: _normalizeKind(kind),
       createdAt: now,
       updatedAt: now,
       providerId: providerId,
@@ -228,6 +231,7 @@ class ChatRepository {
             (chat) => {
               "id": chat.id,
               "title": chat.title,
+              "kind": chat.kind,
               "createdAt": chat.createdAt.toIso8601String(),
               "updatedAt": chat.updatedAt.toIso8601String(),
               "providerId": chat.providerId,
@@ -267,16 +271,17 @@ class ChatRepository {
       '${dir.path}/${_safeFilePart(prefix)}_$safeTimestamp.json',
     );
     final formatted = const JsonEncoder.withIndent('  ').convert(payload);
-    await file.writeAsString(formatted);
+    try {
+      await file.writeAsString(formatted);
+    } catch (e) {
+      throw Exception('Impossibile scrivere il backup: $e');
+    }
     return file.path;
   }
 
   Future<String> exportChatsToJsonFile() async {
     final payload = await exportAppPayload();
-    return exportPayloadToJsonFile(
-      prefix: 'iassistente_backup',
-      payload: payload,
-    );
+    return exportPayloadToJsonFile(prefix: 'mimir_backup', payload: payload);
   }
 
   Future<String> exportUserDataToJsonFile({
@@ -285,10 +290,7 @@ class ChatRepository {
     final payload = await exportAppPayload(includeAppState: true);
     payload['account'] = accountPayload;
 
-    return exportPayloadToJsonFile(
-      prefix: 'iassistente_userdata',
-      payload: payload,
-    );
+    return exportPayloadToJsonFile(prefix: 'mimir_userdata', payload: payload);
   }
 
   Future<String?> latestBackupPath() async {
@@ -298,7 +300,8 @@ class ChatRepository {
         .whereType<File>()
         .where(
           (f) =>
-              f.path.contains('iassistente_backup_') &&
+              (f.path.contains('mimir_backup_') ||
+                  f.path.contains('iassistente_backup_')) &&
               f.path.endsWith('.json'),
         )
         .toList();
@@ -318,7 +321,12 @@ class ChatRepository {
     required String path,
     bool replaceLocalData = true,
   }) async {
-    final raw = await File(path).readAsString();
+    final String raw;
+    try {
+      raw = await File(path).readAsString();
+    } catch (e) {
+      throw Exception('Impossibile leggere il file: $e');
+    }
     final parsed = jsonDecode(raw);
 
     if (parsed is! Map<String, dynamic>) {
@@ -365,6 +373,7 @@ class ChatRepository {
               db.ChatsCompanion.insert(
                 id: id,
                 title: (rawChat['title'] ?? 'Chat importata').toString(),
+                kind: Value(_normalizeKind((rawChat['kind'] ?? '').toString())),
                 createdAt: _parseDate(rawChat['createdAt']) ?? DateTime.now(),
                 updatedAt: _parseDate(rawChat['updatedAt']) ?? DateTime.now(),
                 providerId: (rawChat['providerId'] ?? 'openai').toString(),
@@ -461,7 +470,11 @@ class ChatRepository {
     final safeTitle = _safeFilePart(chatRow.title);
     final safeTimestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
     final file = File('${dir.path}/chat_${safeTitle}_$safeTimestamp.md');
-    await file.writeAsString(buffer.toString());
+    try {
+      await file.writeAsString(buffer.toString());
+    } catch (e) {
+      throw Exception('Impossibile esportare la chat: $e');
+    }
     return file.path;
   }
 
@@ -479,6 +492,7 @@ class ChatRepository {
     return chat_model.Chat(
       id: row.id,
       title: row.title,
+      kind: _normalizeKind(row.kind),
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       providerId: row.providerId,
@@ -515,5 +529,16 @@ class ChatRepository {
     );
     if (cleaned.isEmpty) return 'chat';
     return cleaned;
+  }
+
+  String _normalizeKind(String value) {
+    final cleaned = value.trim();
+    if (cleaned == chat_model.Chat.kindDiet ||
+        cleaned == chat_model.Chat.kindMedical ||
+        cleaned == chat_model.Chat.kindLegal ||
+        cleaned == chat_model.Chat.kindGeneral) {
+      return cleaned;
+    }
+    return chat_model.Chat.kindGeneral;
   }
 }

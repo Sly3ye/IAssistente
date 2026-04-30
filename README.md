@@ -1,4 +1,4 @@
-# iassistente
+# Mimir
 
 Wrapper LLM multi-provider in Flutter con chat persistenti, auth Firebase, streaming e fallback automatico.
 
@@ -20,7 +20,7 @@ Wrapper LLM multi-provider in Flutter con chat persistenti, auth Firebase, strea
 - Memoria utente opt-in e moderazione input opt-in
 - Voice mode MVP: dettatura STT + lettura risposta TTS
 - Allegati completi: txt/md/json/csv/yaml + estrazione PDF + OCR immagini
-- RAG locale persistito sugli allegati con gestione documenti
+- Documenti personali indicizzati localmente dagli allegati
 - Login Firebase: email/password, Google, Apple
 - Reset password e invio email di verifica
 - Profilo base e privacy UX: nome, avatar URL, lingua, export dati, cloud backup, delete account

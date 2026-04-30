@@ -17,7 +17,9 @@ class RagDocumentsPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(strings.pick(it: 'Documenti RAG', en: 'RAG documents')),
+        title: Text(
+          strings.pick(it: 'Documenti personali', en: 'Personal documents'),
+        ),
         actions: [
           if (docs.isNotEmpty)
             TextButton(
@@ -26,15 +28,12 @@ class RagDocumentsPage extends ConsumerWidget {
                   context: context,
                   builder: (dialogContext) => AlertDialog(
                     title: Text(
-                      strings.pick(
-                        it: 'Svuotare indice?',
-                        en: 'Clear index?',
-                      ),
+                      strings.pick(it: 'Svuotare indice?', en: 'Clear index?'),
                     ),
                     content: Text(
                       strings.pick(
-                        it: 'Tutti i documenti RAG verranno rimossi.',
-                        en: 'All RAG documents will be removed.',
+                        it: 'Tutti i documenti personali verranno rimossi.',
+                        en: 'All personal documents will be removed.',
                       ),
                     ),
                     actions: [
@@ -57,16 +56,30 @@ class RagDocumentsPage extends ConsumerWidget {
             ),
         ],
       ),
-      body: docs.isEmpty
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  strings.noIndexedDocuments,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyLarge,
+      floatingActionButton: docs.isEmpty
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: () async {
+                await controller.setRagEnabled(true);
+                await controller.newChat();
+                if (context.mounted) Navigator.pop(context, true);
+              },
+              icon: const Icon(Icons.chat_bubble_outline_rounded),
+              label: Text(
+                strings.pick(
+                  it: 'Chiedi sui documenti',
+                  en: 'Ask about documents',
                 ),
               ),
+            ),
+      body: docs.isEmpty
+          ? _EmptyRagState(
+              strings: strings,
+              onStartChat: () async {
+                await controller.setRagEnabled(true);
+                await controller.newChat();
+                if (context.mounted) Navigator.pop(context, true);
+              },
             )
           : ListView.separated(
               padding: const EdgeInsets.all(16),
@@ -87,10 +100,7 @@ class RagDocumentsPage extends ConsumerWidget {
 }
 
 class _RagDocumentCard extends StatelessWidget {
-  const _RagDocumentCard({
-    required this.document,
-    required this.onDelete,
-  });
+  const _RagDocumentCard({required this.document, required this.onDelete});
 
   final RagDocument document;
   final VoidCallback onDelete;
@@ -138,6 +148,119 @@ class _RagDocumentCard extends StatelessWidget {
             icon: const Icon(Icons.delete_outline_rounded),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _EmptyRagState extends StatelessWidget {
+  const _EmptyRagState({required this.strings, required this.onStartChat});
+
+  final AppStrings strings;
+  final VoidCallback onStartChat;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final accentColor =
+        isDark ? const Color(0xFF9FD9CB) : const Color(0xFF0F5B52);
+
+    final steps = [
+      strings.pick(
+        it: '1. Apri le impostazioni modello e attiva Documenti personali',
+        en: '1. Open model settings and enable Personal Documents',
+      ),
+      strings.pick(
+        it: '2. Avvia una chat e allega un file PDF, TXT o immagine',
+        en: '2. Start a chat and attach a PDF, TXT, or image file',
+      ),
+      strings.pick(
+        it: '3. Il file viene indicizzato e appare qui, pronto per le domande',
+        en: '3. The file gets indexed and appears here, ready to query',
+      ),
+    ];
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: isDark
+                    ? const Color(0xFF18322D)
+                    : const Color(0xFFDCEDE7),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.dataset_linked_outlined,
+                size: 36,
+                color: accentColor,
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              strings.pick(
+                it: 'Nessun documento indicizzato',
+                en: 'No documents indexed yet',
+              ),
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              strings.pick(
+                it: 'Indicizza i tuoi file per poter fare domande specifiche sul loro contenuto direttamente in chat.',
+                en: 'Index your files to ask specific questions about their content directly in chat.',
+              ),
+              style: theme.textTheme.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color:
+                    isDark ? const Color(0xFF1D2523) : const Color(0xFFF4EBDD),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: theme.dividerColor),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: steps
+                    .map(
+                      (step) => Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Text(
+                          step,
+                          style: theme.textTheme.bodySmall
+                              ?.copyWith(height: 1.4),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: onStartChat,
+              icon: const Icon(Icons.chat_bubble_outline_rounded),
+              label: Text(
+                strings.pick(
+                  it: 'Vai in chat',
+                  en: 'Go to chat',
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

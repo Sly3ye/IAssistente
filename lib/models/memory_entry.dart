@@ -1,16 +1,7 @@
-enum MemoryCategory {
-  profile,
-  preference,
-  constraint,
-  goal,
-  note,
-}
+enum MemoryCategory { profile, preference, constraint, goal, note }
 
 class MemoryEntry {
-  const MemoryEntry({
-    required this.category,
-    required this.content,
-  });
+  const MemoryEntry({required this.category, required this.content});
 
   final MemoryCategory category;
   final String content;

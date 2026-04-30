@@ -119,7 +119,7 @@ class AppStrings {
       pick(it: 'Consenso analytics', en: 'Analytics consent');
   String get adsConsent => pick(it: 'Consenso ads', en: 'Ads consent');
   String get localRag =>
-      pick(it: 'RAG locale sugli allegati', en: 'Local RAG on attachments');
+      pick(it: 'Documenti personali', en: 'Personal documents');
   String ragSourcesTitle(int count) =>
       pick(it: 'Fonti locali usate: $count', en: 'Local sources used: $count');
   String ragDocumentsLabel(int count) => pick(
@@ -192,8 +192,8 @@ class AppStrings {
     en: 'Attachment `$fileName` (type `$type`)',
   );
   String ragIndexed(String fileName) => pick(
-    it: 'Documento indicizzato per RAG locale: $fileName',
-    en: 'Document indexed for local RAG: $fileName',
+    it: 'Documento personale indicizzato: $fileName',
+    en: 'Personal document indexed: $fileName',
   );
   String attachmentProcessed(String note) => pick(it: note, en: note);
   String get failedAttachmentExtraction => pick(
@@ -265,15 +265,15 @@ class AppStrings {
       pick(it: 'Es. Scrittura tecnica', en: 'E.g. Technical writing');
 
   String get onboardingTitleA =>
-      pick(it: 'Benvenuto in AIssistente', en: 'Welcome to AIssistente');
+      pick(it: 'Benvenuto in Mimir', en: 'Welcome to Mimir');
   String get onboardingTitleB => pick(it: 'Partenza rapida', en: 'Quick start');
   String get onboardingBodyA => pick(
-    it: 'Suggerimento: usa /help per tool locali, salva preset prompt e attiva fallback automatico per maggiore affidabilita.',
-    en: 'Tip: use /help for local tools, save prompt presets, and enable automatic fallback for better reliability.',
+    it: 'Scegli un percorso e parti da un caso concreto. Puoi sempre tornare alla chat generale dal menu.',
+    en: 'Choose a workflow and start from a concrete case. You can always return to general chat from the menu.',
   );
   String get onboardingBodyB => pick(
-    it: 'Suggerimento: allega documenti per indicizzarli in locale, usa il microfono per dettare e aggiorna la lista modelli dal pannello impostazioni.',
-    en: 'Tip: attach documents to index them locally, use the microphone to dictate, and refresh the model list from settings.',
+    it: 'Mimir funziona meglio quando separi chat generale, dieta, medico, legale e documenti personali.',
+    en: 'Mimir works best when you separate general chat, diet, medical, legal, and personal documents.',
   );
   String get start => pick(it: 'Inizia', en: 'Start');
 
@@ -314,8 +314,8 @@ class AppStrings {
   String get dataPolicyTitle =>
       pick(it: 'Policy tecnica dati', en: 'Technical data policy');
   String get dataPolicyBody => pick(
-    it: 'Locale: chat, messaggi, impostazioni, preset prompt, memoria utente, indice RAG e metriche locali. Cloud backup: un payload JSON esportato manualmente con chat, messaggi, stato app e profilo base; nessun embedding cloud dedicato. Analytics e crash reporting restano spenti finche non dai consenso.',
-    en: 'Local: chats, messages, settings, prompt presets, user memory, RAG index, and local metrics. Cloud backup: a manually exported JSON payload with chats, messages, app state, and basic profile; no dedicated cloud embeddings. Analytics and crash reporting stay off until you grant consent.',
+    it: 'Locale: chat, messaggi, impostazioni, preset prompt, memoria utente, documenti personali e metriche locali. Cloud backup: un payload JSON esportato manualmente con chat, messaggi, stato app e profilo base; nessun embedding cloud dedicato. Analytics e crash reporting restano spenti finche non dai consenso.',
+    en: 'Local: chats, messages, settings, prompt presets, user memory, personal documents, and local metrics. Cloud backup: a manually exported JSON payload with chats, messages, app state, and basic profile; no dedicated cloud embeddings. Analytics and crash reporting stay off until you grant consent.',
   );
   String get premiumSection => pick(it: 'Premium', en: 'Premium');
   String get saveProfile => pick(it: 'Salva profilo', en: 'Save profile');
@@ -419,4 +419,245 @@ class AppStrings {
   );
   String get dailyLimitLabel =>
       pick(it: 'Limite giornaliero raggiunto', en: 'Daily limit reached');
+
+  // Privacy policy link
+  String get privacyPolicyLink =>
+      pick(it: 'Informativa privacy', en: 'Privacy policy');
+  String get termsLink =>
+      pick(it: 'Termini di servizio', en: 'Terms of service');
+  String get bySigningIn => pick(
+    it: 'Accedendo accetti i nostri',
+    en: 'By signing in you agree to our',
+  );
+  String get and => pick(it: 'e la', en: 'and our');
+
+  // Mic / TTS error messages (U6)
+  String get microphoneError => pick(
+    it: 'Microfono non disponibile o permesso negato.',
+    en: 'Microphone unavailable or permission denied.',
+  );
+  String get ttsError => pick(
+    it: 'Text-to-speech non disponibile su questo dispositivo.',
+    en: 'Text-to-speech is not available on this device.',
+  );
+
+  // Circuit breaker explanation (U7)
+  String circuitBreakerExplanation(List<String> providers) => pick(
+    it: 'Il provider ${providers.join(', ')} ha risposto con troppi errori ed è temporaneamente sospeso. Cambia provider o riprova tra qualche minuto.',
+    en: 'Provider ${providers.join(', ')} returned too many errors and is temporarily suspended. Switch provider or try again in a few minutes.',
+  );
+  String get switchProvider => pick(it: 'Cambia provider', en: 'Switch provider');
+
+  // Account page labels (U5)
+  String get fullName => pick(it: 'NOME COMPLETO', en: 'FULL NAME');
+  String get primaryEmail => pick(it: 'EMAIL PRINCIPALE', en: 'PRIMARY EMAIL');
+  String get preferredLanguageLabel =>
+      pick(it: 'LINGUA PREFERITA', en: 'PREFERRED LANGUAGE');
+  String get avatarUrlLabel => pick(it: 'URL AVATAR', en: 'AVATAR URL');
+
+  // Drawer pin labels (U5)
+  String get pinChat => pick(it: 'Fissa', en: 'Pin');
+  String get unpinChat => pick(it: 'Rimuovi fissa', en: 'Unpin');
+
+  // Login page field labels (U5)
+  String get emailFieldLabel =>
+      pick(it: 'EMAIL DI LAVORO', en: 'WORK EMAIL');
+  String get passwordFieldLabel => pick(it: 'PASSWORD', en: 'PASSCODE');
+
+  // Typing indicator (Q1 / U5)
+  String get typing => pick(it: 'Scrivendo...', en: 'Typing...');
+
+  // Attachment status (U3)
+  String get attachmentExtracting =>
+      pick(it: 'Elaborazione...', en: 'Processing...');
+  String get attachmentExtracted =>
+      pick(it: 'Pronto', en: 'Ready');
+  String get attachmentFailed =>
+      pick(it: 'Lettura fallita', en: 'Read failed');
+
+  // Delete chat confirmation (U4)
+  String get deleteChatConfirmTitle =>
+      pick(it: 'Eliminare la chat?', en: 'Delete chat?');
+  String get deleteChatConfirmBody => pick(
+    it: 'Questa azione è irreversibile. Tutti i messaggi verranno eliminati.',
+    en: 'This action is irreversible. All messages will be deleted.',
+  );
+
+  // Conversation time chip
+  String todayChip(String time) =>
+      pick(it: 'OGGI, $time', en: 'TODAY, $time');
+
+  // Onboarding (Q3)
+  String get onboardingSkip => pick(it: 'Salta', en: 'Skip');
+  String get onboardingNext => pick(it: 'Avanti', en: 'Next');
+  String get onboardingTitle1 =>
+      pick(it: 'Benvenuto in Mimir', en: 'Welcome to Mimir');
+  String get onboardingBody1 => pick(
+    it: 'Il tuo assistente AI con provider multipli, memoria e agenti verticali per dieta, salute e legale.',
+    en: 'Your AI assistant with multiple providers, memory, and vertical agents for diet, health, and legal.',
+  );
+  String get onboardingTitle2 =>
+      pick(it: 'Agenti specializzati', en: 'Specialized agents');
+  String get onboardingBody2 => pick(
+    it: 'Usa gli agenti Dieta, Medico e Avvocato dal menu laterale. Ogni agente ha un profilo dedicato che guida le risposte.',
+    en: 'Use the Diet, Medical, and Lawyer agents from the side menu. Each agent has a dedicated profile that guides responses.',
+  );
+  String get onboardingTitle3 =>
+      pick(it: 'Documenti e Memoria', en: 'Documents and Memory');
+  String get onboardingBody3 => pick(
+    it: 'Allega PDF o immagini in chat per analizzarli. Scrivi "ricorda che..." per salvare note permanenti.',
+    en: 'Attach PDFs or images in chat to analyze them. Write "remember that..." to save permanent notes.',
+  );
+  String get onboardingTitle4 =>
+      pick(it: 'Pronto a partire', en: 'Ready to go');
+  String get onboardingBody4 => pick(
+    it: 'Puoi cambiare provider, temperatura e system prompt dalle impostazioni modello. Usa /help in chat per i comandi locali.',
+    en: 'You can change provider, temperature, and system prompt from model settings. Use /help in chat for local commands.',
+  );
+
+  // Model settings sheet
+  String get modelSettingsTitle =>
+      pick(it: 'Impostazioni modello', en: 'Model Settings');
+  String get modelSettingsSubtitle => pick(
+    it: 'Configura provider attivo e parametri operativi.',
+    en: 'Configure active provider and operational parameters.',
+  );
+  String get activeModelLabel =>
+      pick(it: 'MODELLO ATTIVO', en: 'ACTIVE MODEL');
+  String autoSwitchLabel(bool on) => pick(
+    it: 'Auto-Switch: ${on ? 'ON' : 'OFF'}',
+    en: 'Auto-Switch: ${on ? 'ON' : 'OFF'}',
+  );
+  String get providerRoutingTitle =>
+      pick(it: 'Routing provider', en: 'Provider Routing');
+  String currentProvider(String label) => pick(
+    it: 'Provider corrente: $label',
+    en: 'Current provider: $label',
+  );
+  String get reasoningModeLabel =>
+      pick(it: 'MODALITÀ RAGIONAMENTO', en: 'REASONING MODE');
+  String get modeStandard => pick(it: 'Standard', en: 'Standard');
+  String get modeDeep => pick(it: 'Approfondito', en: 'Deep');
+  String get modeDeepDescription => pick(
+    it: 'La modalità Approfondita aumenta il contesto e la profondità di ragionamento. La latenza aumenterà.',
+    en: 'Deep mode increases context and reasoning depth. Latency will increase.',
+  );
+  String get modeStandardDescription => pick(
+    it: 'La modalità Standard bilancia velocità e affidabilità per le attività quotidiane.',
+    en: 'Standard mode balances speed and reliability for everyday tasks.',
+  );
+  String get parametersLabel =>
+      pick(it: 'PARAMETRI', en: 'PARAMETERS');
+  String get crossSessionMemoryTitle =>
+      pick(it: 'Memoria multi-sessione', en: 'Cross-Session Memory');
+  String get crossSessionMemorySubtitle => pick(
+    it: 'Mantieni il contesto tra le conversazioni',
+    en: 'Retain context across conversations',
+  );
+  String get safetyControlsTitle =>
+      pick(it: 'Controlli di sicurezza', en: 'Safety Controls');
+  String get safetyControlsSubtitle => pick(
+    it: 'Filtra prompt rischiosi e richieste non supportate',
+    en: 'Filter risky prompts and unsupported requests',
+  );
+  String get providerAutoSwitchTitle =>
+      pick(it: 'Auto-Switch provider', en: 'Provider Auto-Switch');
+  String get providerAutoSwitchSubtitle => pick(
+    it: 'Cambia provider automaticamente quando necessario',
+    en: 'Switch model provider automatically when needed',
+  );
+  String get offlinePreferenceTitle =>
+      pick(it: 'Preferenza offline', en: 'Offline Preference');
+  String get offlinePreferenceSubtitle => pick(
+    it: 'Preferisci percorsi di esecuzione compatibili con offline',
+    en: 'Prefer local-compatible execution paths',
+  );
+  String get personalDocumentsTitle =>
+      pick(it: 'Documenti personali', en: 'Personal Documents');
+  String indexedDocumentsSubtitle(int count) => pick(
+    it: 'Documenti indicizzati: $count',
+    en: 'Indexed documents: $count',
+  );
+  String get nightModeTitle => pick(it: 'Modalità notte', en: 'Night Mode');
+  String get nightModeSubtitle => pick(
+    it: 'Passa alla versione scura della palette corrente',
+    en: 'Switch to the dark version of the current palette',
+  );
+  String get voicePlaybackTitle =>
+      pick(it: 'Voce e riproduzione', en: 'Voice & Playback');
+  String get voiceDefaultSubtitle =>
+      pick(it: 'Usa la voce predefinita del dispositivo', en: 'Use the device default voice');
+  String get voiceSelectSubtitle =>
+      pick(it: 'Seleziona una voce TTS e regola la riproduzione', en: 'Select a TTS voice and tune playback');
+  String get voiceDropdownLabel => pick(it: 'Voce', en: 'Voice');
+  String get voiceSystemDefault =>
+      pick(it: 'Predefinita di sistema', en: 'System default');
+  String speechRateLabel(double rate) => pick(
+    it: 'Velocità voce: ${rate.toStringAsFixed(2)}',
+    en: 'Speech rate: ${rate.toStringAsFixed(2)}',
+  );
+  String voiceToneLabel(double pitch) => pick(
+    it: 'Tono voce: ${pitch.toStringAsFixed(2)}',
+    en: 'Voice tone: ${pitch.toStringAsFixed(2)}',
+  );
+  String get advancedControlsTitle =>
+      pick(it: 'Controlli avanzati', en: 'Advanced Controls');
+  String advancedControlsSubtitle(double temp, double topP) => pick(
+    it: 'Temp ${temp.toStringAsFixed(2)} • Top P ${topP.toStringAsFixed(2)}',
+    en: 'Temp ${temp.toStringAsFixed(2)} • Top P ${topP.toStringAsFixed(2)}',
+  );
+  String temperatureSliderLabel(double value) => pick(
+    it: 'Temperatura: ${value.toStringAsFixed(2)}',
+    en: 'Temperature: ${value.toStringAsFixed(2)}',
+  );
+  String topPSliderLabel(double value) => pick(
+    it: 'Top P: ${value.toStringAsFixed(2)}',
+    en: 'Top P: ${value.toStringAsFixed(2)}',
+  );
+  String maxTokensSliderLabel(int value) =>
+      pick(it: 'Token massimi: $value', en: 'Max tokens: $value');
+  String get analyticsConsentTitle =>
+      pick(it: 'Consenso analytics', en: 'Analytics Consent');
+  String get analyticsConsentSubtitle => pick(
+    it: 'Abilita diagnostica e analytics prodotto',
+    en: 'Allow diagnostics and product analytics',
+  );
+  String get adsConsentTitle =>
+      pick(it: 'Consenso pubblicità', en: 'Ads Consent');
+  String get adsConsentSubtitle => pick(
+    it: 'Abilita la personalizzazione degli annunci',
+    en: 'Allow advertising personalization',
+  );
+  String get resetDefaults => pick(it: 'Ripristina', en: 'Reset Defaults');
+  String get applySettings => pick(it: 'Applica', en: 'Apply Settings');
+  String get longContext => pick(it: 'Contesto lungo', en: 'Long Context');
+  String get expandedContext =>
+      pick(it: 'Contesto espanso', en: 'Expanded Context');
+  String get standardContext =>
+      pick(it: 'Contesto standard', en: 'Standard Context');
+  String get speedFastest => pick(it: 'Velocissimo', en: 'Fastest');
+  String get speedBalanced => pick(it: 'Bilanciato', en: 'Balanced');
+  String get speedCreative => pick(it: 'Creativo', en: 'Creative');
+
+  // Memory delete confirmation (U4)
+  String get deleteMemoryConfirmTitle =>
+      pick(it: 'Eliminare questa memoria?', en: 'Delete this memory entry?');
+  String get deleteMemoryConfirmBody => pick(
+    it: 'Questa voce verrà rimossa definitivamente.',
+    en: 'This entry will be permanently removed.',
+  );
+
+  // Error badge in chat bubble (U5)
+  String get errorBadge => pick(it: 'Errore', en: 'Error');
+
+  // Unsaved changes dialog in model settings (U5)
+  String get unsavedChangesTitle =>
+      pick(it: 'Modifiche non salvate', en: 'Unsaved changes');
+  String get unsavedChangesBody => pick(
+    it: 'Provider, modello e impostazioni hanno modifiche non salvate. Applicale prima di chiudere, o scarta la bozza.',
+    en: 'Provider, model and settings have unsaved changes. Apply them before closing, or discard the draft.',
+  );
+  String get discard => pick(it: 'Scarta', en: 'Discard');
+  String get apply => pick(it: 'Applica', en: 'Apply');
+  String get closeDialog => pick(it: 'Chiudi', en: 'Close');
 }

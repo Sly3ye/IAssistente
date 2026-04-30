@@ -64,20 +64,27 @@ class AnthropicProvider implements LLMProvider {
     }
 
     try {
-      final response = await http.post(
-        Uri.parse(_baseUrl),
-        headers: _headers(apiKey),
-        body: jsonEncode({
-          "model": modelId,
-          "system": _systemPrompt(config),
-          "max_tokens": config.maxTokens,
-          "temperature": config.temperature,
-          "top_p": config.topP,
-          "messages": _mapMessages(messages),
-        }),
-      );
+      final response = await http
+          .post(
+            Uri.parse(_baseUrl),
+            headers: _headers(apiKey),
+            body: jsonEncode({
+              "model": modelId,
+              "system": _systemPrompt(config),
+              "max_tokens": config.maxTokens,
+              "temperature": config.temperature,
+              "top_p": config.topP,
+              "messages": _mapMessages(messages),
+            }),
+          )
+          .timeout(const Duration(seconds: 60));
 
       final data = jsonDecode(response.body);
+      if (response.statusCode == 429) {
+        final retryAfter = response.headers['retry-after'];
+        final wait = retryAfter != null ? ' (riprova tra ${retryAfter}s)' : '';
+        return "Limite richieste raggiunto$wait. Aspetta un momento e riprova.";
+      }
       if (response.statusCode != 200) {
         return "Errore Anthropic: ${data['error']?['message'] ?? response.statusCode}";
       }
@@ -131,7 +138,25 @@ class AnthropicProvider implements LLMProvider {
     String? eventType;
     try {
       client = http.Client();
-      final streamed = await client.send(request);
+      final streamed = await client
+          .send(request)
+          .timeout(const Duration(seconds: 30));
+      if (streamed.statusCode == 429) {
+        final retryAfter = streamed.headers['retry-after'];
+        final wait = retryAfter != null ? ' (riprova tra ${retryAfter}s)' : '';
+        yield "Limite richieste raggiunto$wait. Aspetta un momento e riprova.";
+        return;
+      }
+      if (streamed.statusCode >= 400) {
+        final errorBody = await streamed.stream.bytesToString();
+        try {
+          final data = jsonDecode(errorBody);
+          yield "Errore Anthropic: ${data['error']?['message'] ?? streamed.statusCode}";
+        } catch (_) {
+          yield "Errore Anthropic: ${errorBody.isEmpty ? streamed.statusCode : errorBody}";
+        }
+        return;
+      }
       final buffer = StringBuffer();
       await for (final chunk in streamed.stream) {
         buffer.write(utf8.decode(chunk));
@@ -179,19 +204,21 @@ class AnthropicProvider implements LLMProvider {
     if (isClientSideProviderBlockedInProduction()) return null;
 
     try {
-      final response = await http.post(
-        Uri.parse(_baseUrl),
-        headers: _headers(apiKey),
-        body: jsonEncode({
-          "model": modelId,
-          "system":
-              "Genera un titolo molto breve (max 4 parole) per questo contenuto.",
-          "max_tokens": 20,
-          "messages": [
-            {"role": "user", "content": firstMessage},
-          ],
-        }),
-      );
+      final response = await http
+          .post(
+            Uri.parse(_baseUrl),
+            headers: _headers(apiKey),
+            body: jsonEncode({
+              "model": modelId,
+              "system":
+                  "Genera un titolo molto breve (max 4 parole) per questo contenuto.",
+              "max_tokens": 20,
+              "messages": [
+                {"role": "user", "content": firstMessage},
+              ],
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
       final data = jsonDecode(response.body);
       final content = data["content"];
       if (content is List) {

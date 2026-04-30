@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../l10n/app_strings.dart';
 import '../models/memory_entry.dart';
 import '../providers/app_providers.dart';
 
@@ -19,6 +20,20 @@ class MemoryPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(languageCode == 'it' ? 'Memoria utente' : 'User memory'),
+        actions: [
+          Tooltip(
+            message: languageCode == 'it'
+                ? 'Usa la memoria nelle risposte'
+                : 'Use memory in replies',
+            child: Switch(
+              value: state.longTermMemoryEnabled,
+              onChanged: (value) => ref
+                  .read(chatControllerProvider.notifier)
+                  .setLongTermMemory(value),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showEditor(context, ref),
@@ -26,17 +41,10 @@ class MemoryPage extends ConsumerWidget {
         label: Text(languageCode == 'it' ? 'Aggiungi' : 'Add'),
       ),
       body: entries.isEmpty
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 28),
-                child: Text(
-                  languageCode == 'it'
-                      ? 'Salva preferenze, vincoli, obiettivi e fatti utili. Verranno usati solo quando rilevanti.'
-                      : 'Save preferences, constraints, goals, and useful facts. They will be used only when relevant.',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyLarge,
-                ),
-              ),
+          ? _EmptyMemoryState(
+              languageCode: languageCode,
+              theme: theme,
+              onAdd: () => _showEditor(context, ref),
             )
           : ListView.separated(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
@@ -66,19 +74,47 @@ class MemoryPage extends ConsumerWidget {
                             rawValue: raw,
                           );
                         } else if (value == 'delete') {
-                          await ref
-                              .read(chatControllerProvider.notifier)
-                              .deleteMemoryEntry(raw);
+                          final strings = AppStrings.ofCode(languageCode);
+                          if (!context.mounted) return;
+                          final confirmed = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: Text(strings.deleteMemoryConfirmTitle),
+                              content: Text(strings.deleteMemoryConfirmBody),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: Text(strings.cancel),
+                                ),
+                                TextButton(
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: Colors.red,
+                                  ),
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  child: Text(strings.delete),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (confirmed == true) {
+                            await ref
+                                .read(chatControllerProvider.notifier)
+                                .deleteMemoryEntry(raw);
+                          }
                         }
                       },
                       itemBuilder: (_) => [
                         PopupMenuItem(
                           value: 'edit',
-                          child: Text(languageCode == 'it' ? 'Modifica' : 'Edit'),
+                          child: Text(
+                            languageCode == 'it' ? 'Modifica' : 'Edit',
+                          ),
                         ),
                         PopupMenuItem(
                           value: 'delete',
-                          child: Text(languageCode == 'it' ? 'Elimina' : 'Delete'),
+                          child: Text(
+                            languageCode == 'it' ? 'Elimina' : 'Delete',
+                          ),
                         ),
                       ],
                     ),
@@ -127,8 +163,12 @@ class MemoryPage extends ConsumerWidget {
                   children: [
                     Text(
                       languageCode == 'it'
-                          ? (initial == null ? 'Nuova memoria' : 'Modifica memoria')
-                          : (initial == null ? 'New memory entry' : 'Edit memory entry'),
+                          ? (initial == null
+                                ? 'Nuova memoria'
+                                : 'Modifica memoria')
+                          : (initial == null
+                                ? 'New memory entry'
+                                : 'Edit memory entry'),
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
@@ -137,7 +177,9 @@ class MemoryPage extends ConsumerWidget {
                     DropdownButtonFormField<MemoryCategory>(
                       initialValue: category,
                       decoration: InputDecoration(
-                        labelText: languageCode == 'it' ? 'Categoria' : 'Category',
+                        labelText: languageCode == 'it'
+                            ? 'Categoria'
+                            : 'Category',
                       ),
                       items: MemoryCategory.values
                           .map(
@@ -169,7 +211,9 @@ class MemoryPage extends ConsumerWidget {
                         Expanded(
                           child: OutlinedButton(
                             onPressed: () => Navigator.pop(context),
-                            child: Text(languageCode == 'it' ? 'Annulla' : 'Cancel'),
+                            child: Text(
+                              languageCode == 'it' ? 'Annulla' : 'Cancel',
+                            ),
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -196,7 +240,9 @@ class MemoryPage extends ConsumerWidget {
                               }
                               if (context.mounted) Navigator.pop(context);
                             },
-                            child: Text(languageCode == 'it' ? 'Salva' : 'Save'),
+                            child: Text(
+                              languageCode == 'it' ? 'Salva' : 'Save',
+                            ),
                           ),
                         ),
                       ],
@@ -208,6 +254,106 @@ class MemoryPage extends ConsumerWidget {
           },
         );
       },
+    );
+  }
+}
+
+class _EmptyMemoryState extends StatelessWidget {
+  const _EmptyMemoryState({
+    required this.languageCode,
+    required this.theme,
+    required this.onAdd,
+  });
+
+  final String languageCode;
+  final ThemeData theme;
+  final VoidCallback onAdd;
+
+  bool get _isItalian => languageCode == 'it';
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = theme.brightness == Brightness.dark;
+    final accentColor = isDark
+        ? const Color(0xFF9FD9CB)
+        : const Color(0xFF0F5B52);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: isDark
+                    ? const Color(0xFF18322D)
+                    : const Color(0xFFDCEDE7),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.psychology_outlined,
+                size: 36,
+                color: accentColor,
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              _isItalian ? 'Nessuna memoria salvata' : 'No memory saved yet',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              _isItalian
+                  ? 'Salva preferenze, vincoli, obiettivi e fatti utili su di te. Verranno inclusi automaticamente nelle risposte quando la memoria è attiva.'
+                  : 'Save preferences, constraints, goals, and useful facts about you. They are automatically included in replies when memory is enabled.',
+              style: theme.textTheme.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? const Color(0xFF1D2523)
+                    : const Color(0xFFF4EBDD),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: theme.dividerColor),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.chat_bubble_outline_rounded,
+                      size: 16, color: accentColor),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      _isItalian
+                          ? 'Scrivi «ricorda che …» in chat per salvare qualcosa al volo'
+                          : 'Write «remember that …» in chat to save on the fly',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: onAdd,
+              icon: const Icon(Icons.add_rounded),
+              label: Text(
+                _isItalian ? 'Aggiungi prima voce' : 'Add first entry',
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

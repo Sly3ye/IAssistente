@@ -26,6 +26,16 @@ class $ChatsTable extends Chats with TableInfo<$ChatsTable, Chat> {
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant("general"),
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -120,6 +130,7 @@ class $ChatsTable extends Chats with TableInfo<$ChatsTable, Chat> {
   List<GeneratedColumn> get $columns => [
     id,
     title,
+    kind,
     createdAt,
     updatedAt,
     providerId,
@@ -153,6 +164,12 @@ class $ChatsTable extends Chats with TableInfo<$ChatsTable, Chat> {
       );
     } else if (isInserting) {
       context.missing(_titleMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
     }
     if (data.containsKey('created_at')) {
       context.handle(
@@ -233,6 +250,10 @@ class $ChatsTable extends Chats with TableInfo<$ChatsTable, Chat> {
         DriftSqlType.string,
         data['${effectivePrefix}title'],
       )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -277,6 +298,7 @@ class $ChatsTable extends Chats with TableInfo<$ChatsTable, Chat> {
 class Chat extends DataClass implements Insertable<Chat> {
   final String id;
   final String title;
+  final String kind;
   final DateTime createdAt;
   final DateTime updatedAt;
   final String providerId;
@@ -288,6 +310,7 @@ class Chat extends DataClass implements Insertable<Chat> {
   const Chat({
     required this.id,
     required this.title,
+    required this.kind,
     required this.createdAt,
     required this.updatedAt,
     required this.providerId,
@@ -302,6 +325,7 @@ class Chat extends DataClass implements Insertable<Chat> {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
     map['title'] = Variable<String>(title);
+    map['kind'] = Variable<String>(kind);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     map['provider_id'] = Variable<String>(providerId);
@@ -317,6 +341,7 @@ class Chat extends DataClass implements Insertable<Chat> {
     return ChatsCompanion(
       id: Value(id),
       title: Value(title),
+      kind: Value(kind),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
       providerId: Value(providerId),
@@ -336,6 +361,7 @@ class Chat extends DataClass implements Insertable<Chat> {
     return Chat(
       id: serializer.fromJson<String>(json['id']),
       title: serializer.fromJson<String>(json['title']),
+      kind: serializer.fromJson<String>(json['kind']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       providerId: serializer.fromJson<String>(json['providerId']),
@@ -352,6 +378,7 @@ class Chat extends DataClass implements Insertable<Chat> {
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
       'title': serializer.toJson<String>(title),
+      'kind': serializer.toJson<String>(kind),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'providerId': serializer.toJson<String>(providerId),
@@ -366,6 +393,7 @@ class Chat extends DataClass implements Insertable<Chat> {
   Chat copyWith({
     String? id,
     String? title,
+    String? kind,
     DateTime? createdAt,
     DateTime? updatedAt,
     String? providerId,
@@ -377,6 +405,7 @@ class Chat extends DataClass implements Insertable<Chat> {
   }) => Chat(
     id: id ?? this.id,
     title: title ?? this.title,
+    kind: kind ?? this.kind,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
     providerId: providerId ?? this.providerId,
@@ -390,6 +419,7 @@ class Chat extends DataClass implements Insertable<Chat> {
     return Chat(
       id: data.id.present ? data.id.value : this.id,
       title: data.title.present ? data.title.value : this.title,
+      kind: data.kind.present ? data.kind.value : this.kind,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       providerId: data.providerId.present
@@ -412,6 +442,7 @@ class Chat extends DataClass implements Insertable<Chat> {
     return (StringBuffer('Chat(')
           ..write('id: $id, ')
           ..write('title: $title, ')
+          ..write('kind: $kind, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('providerId: $providerId, ')
@@ -428,6 +459,7 @@ class Chat extends DataClass implements Insertable<Chat> {
   int get hashCode => Object.hash(
     id,
     title,
+    kind,
     createdAt,
     updatedAt,
     providerId,
@@ -443,6 +475,7 @@ class Chat extends DataClass implements Insertable<Chat> {
       (other is Chat &&
           other.id == this.id &&
           other.title == this.title &&
+          other.kind == this.kind &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
           other.providerId == this.providerId &&
@@ -456,6 +489,7 @@ class Chat extends DataClass implements Insertable<Chat> {
 class ChatsCompanion extends UpdateCompanion<Chat> {
   final Value<String> id;
   final Value<String> title;
+  final Value<String> kind;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<String> providerId;
@@ -468,6 +502,7 @@ class ChatsCompanion extends UpdateCompanion<Chat> {
   const ChatsCompanion({
     this.id = const Value.absent(),
     this.title = const Value.absent(),
+    this.kind = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.providerId = const Value.absent(),
@@ -481,6 +516,7 @@ class ChatsCompanion extends UpdateCompanion<Chat> {
   ChatsCompanion.insert({
     required String id,
     required String title,
+    this.kind = const Value.absent(),
     required DateTime createdAt,
     required DateTime updatedAt,
     required String providerId,
@@ -499,6 +535,7 @@ class ChatsCompanion extends UpdateCompanion<Chat> {
   static Insertable<Chat> custom({
     Expression<String>? id,
     Expression<String>? title,
+    Expression<String>? kind,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<String>? providerId,
@@ -512,6 +549,7 @@ class ChatsCompanion extends UpdateCompanion<Chat> {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (title != null) 'title': title,
+      if (kind != null) 'kind': kind,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (providerId != null) 'provider_id': providerId,
@@ -527,6 +565,7 @@ class ChatsCompanion extends UpdateCompanion<Chat> {
   ChatsCompanion copyWith({
     Value<String>? id,
     Value<String>? title,
+    Value<String>? kind,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<String>? providerId,
@@ -540,6 +579,7 @@ class ChatsCompanion extends UpdateCompanion<Chat> {
     return ChatsCompanion(
       id: id ?? this.id,
       title: title ?? this.title,
+      kind: kind ?? this.kind,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       providerId: providerId ?? this.providerId,
@@ -560,6 +600,9 @@ class ChatsCompanion extends UpdateCompanion<Chat> {
     }
     if (title.present) {
       map['title'] = Variable<String>(title.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
     }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
@@ -596,6 +639,7 @@ class ChatsCompanion extends UpdateCompanion<Chat> {
     return (StringBuffer('ChatsCompanion(')
           ..write('id: $id, ')
           ..write('title: $title, ')
+          ..write('kind: $kind, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('providerId: $providerId, ')
@@ -1235,6 +1279,7 @@ typedef $$ChatsTableCreateCompanionBuilder =
     ChatsCompanion Function({
       required String id,
       required String title,
+      Value<String> kind,
       required DateTime createdAt,
       required DateTime updatedAt,
       required String providerId,
@@ -1249,6 +1294,7 @@ typedef $$ChatsTableUpdateCompanionBuilder =
     ChatsCompanion Function({
       Value<String> id,
       Value<String> title,
+      Value<String> kind,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<String> providerId,
@@ -1275,6 +1321,11 @@ class $$ChatsTableFilterComposer extends Composer<_$AppDatabase, $ChatsTable> {
 
   ColumnFilters<String> get title => $composableBuilder(
     column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1338,6 +1389,11 @@ class $$ChatsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -1393,6 +1449,9 @@ class $$ChatsTableAnnotationComposer
 
   GeneratedColumn<String> get title =>
       $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -1455,6 +1514,7 @@ class $$ChatsTableTableManager
               ({
                 Value<String> id = const Value.absent(),
                 Value<String> title = const Value.absent(),
+                Value<String> kind = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<String> providerId = const Value.absent(),
@@ -1467,6 +1527,7 @@ class $$ChatsTableTableManager
               }) => ChatsCompanion(
                 id: id,
                 title: title,
+                kind: kind,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 providerId: providerId,
@@ -1481,6 +1542,7 @@ class $$ChatsTableTableManager
               ({
                 required String id,
                 required String title,
+                Value<String> kind = const Value.absent(),
                 required DateTime createdAt,
                 required DateTime updatedAt,
                 required String providerId,
@@ -1493,6 +1555,7 @@ class $$ChatsTableTableManager
               }) => ChatsCompanion.insert(
                 id: id,
                 title: title,
+                kind: kind,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 providerId: providerId,

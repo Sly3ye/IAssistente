@@ -105,10 +105,11 @@ class AttachmentExtractionService {
   }) async {
     String? usablePath = filePath;
 
+    File? tempFile;
     if ((usablePath == null || usablePath.isEmpty) && bytes != null) {
       final tempDir = await getTemporaryDirectory();
       final tempPath = '${tempDir.path}/$fileName';
-      final tempFile = File(tempPath);
+      tempFile = File(tempPath);
       await tempFile.writeAsBytes(bytes);
       usablePath = tempPath;
     }
@@ -126,6 +127,11 @@ class AttachmentExtractionService {
       return '';
     } finally {
       recognizer.close();
+      if (tempFile != null) {
+        try {
+          await tempFile.delete();
+        } catch (_) {}
+      }
     }
   }
 

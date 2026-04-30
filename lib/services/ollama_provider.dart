@@ -33,7 +33,9 @@ class OllamaProvider implements LLMProvider {
   Future<List<LLMModelOption>> loadModels() async {
     try {
       final tagsUrl = _baseUrl.replaceAll('/api/chat', '/api/tags');
-      final response = await http.get(Uri.parse(tagsUrl));
+      final response = await http
+          .get(Uri.parse(tagsUrl))
+          .timeout(const Duration(seconds: 10));
       final data = jsonDecode(response.body);
       final rows = data['models'];
       if (rows is! List) return models;
@@ -74,23 +76,26 @@ class OllamaProvider implements LLMProvider {
     required LLMRequestConfig config,
   }) async {
     try {
-      final response = await http.post(
-        Uri.parse(_baseUrl),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "model": modelId,
-          "options": {
-            "temperature": config.temperature,
-            "top_p": config.topP,
-            "num_predict": config.maxTokens,
-          },
-          "messages": [
-            {"role": "system", "content": _systemPrompt(config)},
-            ...messages.map((m) => {"role": m.role, "content": m.content}),
-          ],
-          "stream": false,
-        }),
-      );
+      final response = await http
+          .post(
+            Uri.parse(_baseUrl),
+            headers: {"Content-Type": "application/json"},
+            body: jsonEncode({
+              "model": modelId,
+              "options": {
+                "temperature": config.temperature,
+                "top_p": config.topP,
+                "num_predict": config.maxTokens,
+              },
+              "messages": [
+                {"role": "system", "content": _systemPrompt(config)},
+                ...messages.map(
+                    (m) => {"role": m.role, "content": m.content}),
+              ],
+              "stream": false,
+            }),
+          )
+          .timeout(const Duration(seconds: 120));
 
       if (response.statusCode >= 400) {
         return _errorMessage(response.statusCode);
@@ -128,7 +133,9 @@ class OllamaProvider implements LLMProvider {
         });
 
       client = http.Client();
-      final streamed = await client.send(request);
+      final streamed = await client
+          .send(request)
+          .timeout(const Duration(seconds: 30));
       if (streamed.statusCode >= 400) {
         yield _errorMessage(streamed.statusCode);
         return;
@@ -168,22 +175,24 @@ class OllamaProvider implements LLMProvider {
     required String firstMessage,
   }) async {
     try {
-      final response = await http.post(
-        Uri.parse(_baseUrl),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "model": modelId,
-          "messages": [
-            {
-              "role": "system",
-              "content":
-                  "Genera un titolo molto breve (max 4 parole) per questo contenuto.",
-            },
-            {"role": "user", "content": firstMessage},
-          ],
-          "stream": false,
-        }),
-      );
+      final response = await http
+          .post(
+            Uri.parse(_baseUrl),
+            headers: {"Content-Type": "application/json"},
+            body: jsonEncode({
+              "model": modelId,
+              "messages": [
+                {
+                  "role": "system",
+                  "content":
+                      "Genera un titolo molto breve (max 4 parole) per questo contenuto.",
+                },
+                {"role": "user", "content": firstMessage},
+              ],
+              "stream": false,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
 
       final data = jsonDecode(response.body);
       return data["message"]?["content"]?.trim();

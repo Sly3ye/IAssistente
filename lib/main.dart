@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:app_tracking_transparency/app_tracking_transparency.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -21,6 +23,16 @@ Future<void> main() async {
         () async {
           WidgetsFlutterBinding.ensureInitialized();
 
+          // Request ATT permission on iOS 14.5+ before AdMob initializes.
+          if (Platform.isIOS) {
+            final status =
+                await AppTrackingTransparency.trackingAuthorizationStatus;
+            if (status == TrackingStatus.notDetermined) {
+              await Future<void>.delayed(const Duration(milliseconds: 200));
+              await AppTrackingTransparency.requestTrackingAuthorization();
+            }
+          }
+
           Object? bootstrapError;
           var configDiagnostics = const AppConfigDiagnostics.empty();
           var runtimeConfig = const AppRuntimeConfig.defaults();
@@ -29,7 +41,9 @@ Future<void> main() async {
             await Firebase.initializeApp(
               options: DefaultFirebaseOptions.currentPlatform,
             );
-            configDiagnostics = AppConfigDiagnostics.fromEnvironment(dotenv.env);
+            configDiagnostics = AppConfigDiagnostics.fromEnvironment(
+              dotenv.env,
+            );
             runtimeConfig = await AppRuntimeConfigService.load();
             observability = await ObservabilityService.bootstrap();
             await observability.syncConsent(analyticsConsent: false);
@@ -64,7 +78,7 @@ Future<void> main() async {
                 appRuntimeConfigProvider.overrideWithValue(runtimeConfig),
                 observabilityServiceProvider.overrideWithValue(observability),
               ],
-              child: AIssistenteApp(bootstrapError: bootstrapError),
+              child: MimirApp(bootstrapError: bootstrapError),
             ),
           );
         },
@@ -77,8 +91,8 @@ Future<void> main() async {
       Future.value());
 }
 
-class AIssistenteApp extends ConsumerWidget {
-  const AIssistenteApp({super.key, this.bootstrapError});
+class MimirApp extends ConsumerWidget {
+  const MimirApp({super.key, this.bootstrapError});
 
   final Object? bootstrapError;
 

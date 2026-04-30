@@ -7,6 +7,8 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 import '../controllers/chat_controller.dart';
 import '../l10n/app_strings.dart';
+import '../models/chat.dart';
+import '../pages/onboarding_page.dart';
 import '../providers/app_providers.dart';
 import '../services/llm_provider.dart';
 import '../widgets/chat_drawer.dart';
@@ -22,7 +24,8 @@ class ChatPage extends ConsumerStatefulWidget {
   ConsumerState<ChatPage> createState() => _ChatPageState();
 }
 
-class _ChatPageState extends ConsumerState<ChatPage> {
+class _ChatPageState extends ConsumerState<ChatPage>
+    with WidgetsBindingObserver {
   final ScrollController scrollController = ScrollController();
   final TextEditingController inputController = TextEditingController();
   final FocusNode inputFocus = FocusNode();
@@ -31,7 +34,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   late final FlutterTts _tts;
   bool _isListening = false;
   bool _speechReady = false;
+  bool _isSendingLocal = false;
   bool _onboardingShown = false;
+  bool _showScrollToBottom = false;
   double _micLevel = 0;
   double _minMicLevel = 50000;
   double _maxMicLevel = -50000;
@@ -42,6 +47,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    scrollController.addListener(_onScroll);
     _speech = stt.SpeechToText();
     _tts = FlutterTts();
     _loadTtsVoices();
@@ -60,6 +67,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    scrollController.removeListener(_onScroll);
     scrollController.dispose();
     inputController.dispose();
     inputFocus.dispose();
@@ -68,7 +77,33 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      ref.read(chatControllerProvider.notifier).cancelSending();
+    }
+  }
+
+  void _onScroll() {
+    if (!scrollController.hasClients) return;
+    final pos = scrollController.position;
+    final atBottom = pos.pixels >= pos.maxScrollExtent - 120;
+    if (atBottom == _showScrollToBottom) {
+      setState(() => _showScrollToBottom = !atBottom);
+    }
+  }
+
   Future<void> send() async {
+    if (_isSendingLocal) return;
+    _isSendingLocal = true;
+    try {
+      await _doSend();
+    } finally {
+      _isSendingLocal = false;
+    }
+  }
+
+  Future<void> _doSend() async {
     final strings = AppStrings.ofCode(
       ref.read(chatControllerProvider).preferredLanguageCode,
     );
@@ -97,11 +132,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     inputFocus.requestFocus();
   }
 
-  void scrollToBottom() {
+  void scrollToBottom({bool force = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (scrollController.hasClients) {
+      if (!scrollController.hasClients) return;
+      final pos = scrollController.position;
+      final nearBottom = pos.pixels >= pos.maxScrollExtent - 150;
+      if (force || nearBottom) {
         scrollController.animateTo(
-          scrollController.position.maxScrollExtent,
+          pos.maxScrollExtent,
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeOut,
         );
@@ -137,7 +175,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         if (!mounted) return;
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(strings.localTimeUnavailable)));
+        ).showSnackBar(SnackBar(content: Text(strings.microphoneError)));
         return;
       }
     }
@@ -230,7 +268,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(strings.localTimeUnavailable)));
+      ).showSnackBar(SnackBar(content: Text(strings.ttsError)));
     }
   }
 
@@ -307,8 +345,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               .take(prefix == languageCode.toLowerCase() ? 6 : 2),
         );
       }
-      if (chatState.ttsVoiceName.isNotEmpty && chatState.ttsVoiceLocale.isNotEmpty) {
-        final selectedId = '${chatState.ttsVoiceName}|${chatState.ttsVoiceLocale}';
+      if (chatState.ttsVoiceName.isNotEmpty &&
+          chatState.ttsVoiceLocale.isNotEmpty) {
+        final selectedId =
+            '${chatState.ttsVoiceName}|${chatState.ttsVoiceLocale}';
         final selectedVoice = sorted.where((voice) => voice.id == selectedId);
         shortlist.addAll(selectedVoice);
       }
@@ -401,10 +441,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     it: 'TXT, MD, JSON, CSV, YAML, PDF',
                     en: 'TXT, MD, JSON, CSV, YAML, PDF',
                   ),
-                  onTap: () => Navigator.pop(
-                    context,
-                    _AttachmentPickerKind.document,
-                  ),
+                  onTap: () =>
+                      Navigator.pop(context, _AttachmentPickerKind.document),
                 ),
                 const SizedBox(height: 10),
                 _AttachmentOptionTile(
@@ -446,27 +484,16 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       type: FileType.custom,
       allowedExtensions: switch (choice) {
         _AttachmentPickerKind.document => [
-            'txt',
-            'md',
-            'json',
-            'csv',
-            'yaml',
-            'yml',
-            'pdf',
-          ],
-        _AttachmentPickerKind.image => [
-            'png',
-            'jpg',
-            'jpeg',
-            'webp',
-            'bmp',
-          ],
-        _AttachmentPickerKind.video => [
-            'mp4',
-            'mov',
-            'webm',
-            'mkv',
-          ],
+          'txt',
+          'md',
+          'json',
+          'csv',
+          'yaml',
+          'yml',
+          'pdf',
+        ],
+        _AttachmentPickerKind.image => ['png', 'jpg', 'jpeg', 'webp', 'bmp'],
+        _AttachmentPickerKind.video => ['mp4', 'mov', 'webm', 'mkv'],
       },
     );
     if (result == null || result.files.isEmpty) return;
@@ -492,7 +519,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         if (truncated.length > 5000) {
           truncated = '${truncated.substring(0, 5000)}\n...[truncated]';
         }
-        attachmentPrompt = strings.analyzeAttachment(file.name, truncated);
+        attachmentPrompt = _buildAttachmentPromptForCurrentChat(
+          fileName: file.name,
+          text: truncated,
+          chatKind: chatState.currentChat?.kind ?? Chat.kindGeneral,
+          strings: strings,
+        );
 
         if (chatState.ragEnabled) {
           await controller.upsertRagDocument(
@@ -500,25 +532,29 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             text: extractedText,
           );
         }
-    } else if (isImage) {
-      attachmentPrompt = strings.imageManualFallback(file.name);
-    } else if (isVideo) {
-      attachmentPrompt = strings.pick(
-        it: 'Ho allegato un video `${file.name}`. Se il provider non supporta l’analisi video diretta, chiedimi un frame, una trascrizione o una descrizione per analizzarlo.',
-        en: 'I attached a video `${file.name}`. If the provider does not support direct video analysis, ask me for a frame, transcript, or description to analyze it.',
-      );
-    } else if (ext == 'pdf') {
-      attachmentPrompt = strings.pdfManualFallback(file.name);
-    } else if (ext == 'txt' ||
-        ext == 'md' ||
-        ext == 'json' ||
-        ext == 'csv' ||
-        ext == 'yaml' ||
-        ext == 'yml') {
-      attachmentPrompt = strings.emptyTextAttachment(file.name);
-    } else {
-      attachmentPrompt = strings.attachmentType(file.name, ext);
-    }
+      } else if (isImage) {
+        attachmentPrompt = strings.imageManualFallback(file.name);
+      } else if (isVideo) {
+        attachmentPrompt = strings.pick(
+          it: 'Ho allegato un video `${file.name}`. Se il provider non supporta l’analisi video diretta, chiedimi un frame, una trascrizione o una descrizione per analizzarlo.',
+          en: 'I attached a video `${file.name}`. If the provider does not support direct video analysis, ask me for a frame, transcript, or description to analyze it.',
+        );
+      } else if (ext == 'pdf') {
+        attachmentPrompt = strings.pdfManualFallback(file.name);
+      } else if (ext == 'txt' ||
+          ext == 'md' ||
+          ext == 'json' ||
+          ext == 'csv' ||
+          ext == 'yaml' ||
+          ext == 'yml') {
+        attachmentPrompt = strings.emptyTextAttachment(file.name);
+      } else {
+        attachmentPrompt = strings.attachmentType(file.name, ext);
+      }
+
+      final needsExtraction = !isImage && !isVideo;
+      final extractionFailed =
+          needsExtraction && extractedText.isEmpty && extraction != null;
 
       nextAttachments.add(
         _PendingAttachment(
@@ -529,6 +565,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           prompt: attachmentPrompt,
           previewPath: file.path,
           previewBytes: isImage ? file.bytes : null,
+          extractionFailed: extractionFailed,
         ),
       );
     }
@@ -545,9 +582,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             it: 'Allegati pronti: ${nextAttachments.length}',
             en: 'Attachments ready: ${nextAttachments.length}',
           );
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(snackText)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(snackText)));
     inputFocus.requestFocus();
   }
 
@@ -575,6 +612,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     await _loadTtsVoices();
     if (!context.mounted) return;
     final controller = ref.read(chatControllerProvider.notifier);
+    final strings = AppStrings.ofCode(state.preferredLanguageCode);
 
     final initialProviderId = state.selectedProviderId;
     final initialModelId = state.selectedModelId;
@@ -664,9 +702,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       );
       await controller.setTtsSpeechRate(ttsSpeechRate);
       await controller.setTtsPitch(ttsPitch);
-      await ref.read(monetizationServiceProvider).updateAdsConsent(
-        ref.read(appRuntimeConfigProvider).adsEnabled && adsConsent,
-      );
+      await ref
+          .read(monetizationServiceProvider)
+          .updateAdsConsent(
+            ref.read(appRuntimeConfigProvider).adsEnabled && adsConsent,
+          );
     }
 
     Future<bool> confirmDiscardDrafts(BuildContext modalContext) async {
@@ -687,17 +727,17 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Unsaved changes',
-                        style: TextStyle(
+                      Text(
+                        strings.unsavedChangesTitle,
+                        style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
                       const SizedBox(height: 10),
-                      const Text(
-                        'Provider, model and settings have unsaved changes. Apply them before closing, or discard the draft.',
-                        style: TextStyle(height: 1.45),
+                      Text(
+                        strings.unsavedChangesBody,
+                        style: const TextStyle(height: 1.45),
                       ),
                       const SizedBox(height: 20),
                       Row(
@@ -706,7 +746,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                             child: FilledButton.tonal(
                               onPressed: () =>
                                   Navigator.pop(dialogContext, 'discard'),
-                              child: const Text('Discard'),
+                              child: Text(strings.discard),
                             ),
                           ),
                           const SizedBox(width: 10),
@@ -714,7 +754,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                             child: FilledButton(
                               onPressed: () =>
                                   Navigator.pop(dialogContext, 'apply'),
-                              child: const Text('Apply'),
+                              child: Text(strings.apply),
                             ),
                           ),
                         ],
@@ -728,7 +768,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   child: IconButton(
                     onPressed: () => Navigator.pop(dialogContext, 'cancel'),
                     icon: const Icon(Icons.close_rounded),
-                    tooltip: 'Close',
+                    tooltip: strings.closeDialog,
                   ),
                 ),
               ],
@@ -775,7 +815,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               adsConsent: adsConsent,
               darkModeEnabled: darkModeEnabled,
               ttsVoices: _ttsVoices,
-              selectedTtsVoiceId: ttsVoiceName.isNotEmpty && ttsVoiceLocale.isNotEmpty
+              selectedTtsVoiceId:
+                  ttsVoiceName.isNotEmpty && ttsVoiceLocale.isNotEmpty
                   ? '$ttsVoiceName|$ttsVoiceLocale'
                   : '',
               ttsSpeechRate: ttsSpeechRate,
@@ -786,6 +827,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               systemPrompt: systemPrompt,
               ragDocumentsCount: liveState.ragDocuments.length,
               openCircuitProviders: liveState.openCircuitProviders,
+              languageCode: liveState.preferredLanguageCode,
               onProviderChanged: (nextProviderId) {
                 final providerModels =
                     liveState.providerModels[nextProviderId] ??
@@ -883,6 +925,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final isDark = theme.brightness == Brightness.dark;
     final isCurrentChatSending =
         state.isSending && state.sendingChatId == state.currentChat?.id;
+    final followUpSuggestions = _followUpSuggestions(state, strings);
 
     ref.listen<ChatState>(chatControllerProvider, (prev, next) {
       if (prev?.messages.length != next.messages.length) {
@@ -934,7 +977,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             ),
             const SizedBox(height: 2),
             Text(
-              '${_providerLabel(registry, state.selectedProviderId)} • ${state.selectedModelId}',
+              '${_chatKindLabel(state.currentChat?.kind, strings)} / ${_providerLabel(registry, state.selectedProviderId)} / ${state.selectedModelId}',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
@@ -1030,10 +1073,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                         ),
                         child: Text(
                           _conversationTimeChip(),
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            letterSpacing: 0.7,
-                            color: theme.textTheme.bodySmall?.color,
-                          ),
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                letterSpacing: 0.7,
+                                color: theme.textTheme.bodySmall?.color,
+                              ),
                         ),
                       ),
                     ),
@@ -1079,27 +1123,71 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                           Expanded(
                             child: Text(
                               strings.chooseModelAndWrite,
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(height: 1.45),
+                              style: Theme.of(
+                                context,
+                              ).textTheme.bodyMedium?.copyWith(height: 1.45),
                             ),
                           ),
                         ],
                       ),
                     ),
                   Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
-                      child: ChatList(
-                        messages: state.messages,
-                        controller: scrollController,
-                        isSending: isCurrentChatSending,
-                        streamingText: state.streamingText,
-                        latestAssistantSources: state.latestRagSourceNames,
-                        onReadAloud: (message) =>
-                            _readAssistantMessage(message.content),
-                      ),
+                    child: Stack(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          child: ChatList(
+                            messages: state.messages,
+                            controller: scrollController,
+                            isSending: isCurrentChatSending,
+                            streamingText: state.streamingText,
+                            latestAssistantSources: state.latestRagSourceNames,
+                            onReadAloud: (message) =>
+                                _readAssistantMessage(message.content),
+                          ),
+                        ),
+                        if (_showScrollToBottom)
+                          Positioned(
+                            bottom: 10,
+                            right: 16,
+                            child: AnimatedOpacity(
+                              opacity: _showScrollToBottom ? 1.0 : 0.0,
+                              duration: const Duration(milliseconds: 200),
+                              child: Material(
+                                elevation: 4,
+                                borderRadius: BorderRadius.circular(20),
+                                color: isDark
+                                    ? const Color(0xFF2B5A52)
+                                    : const Color(0xFF0F5B52),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(20),
+                                  onTap: () => scrollToBottom(force: true),
+                                  child: const Padding(
+                                    padding: EdgeInsets.all(10),
+                                    child: Icon(
+                                      Icons.keyboard_arrow_down_rounded,
+                                      color: Colors.white,
+                                      size: 22,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
+                  if (followUpSuggestions.isNotEmpty)
+                    _FollowUpChips(
+                      suggestions: followUpSuggestions,
+                      onSelected: (suggestion) {
+                        inputController.text = suggestion;
+                        inputController.selection = TextSelection.fromPosition(
+                          TextPosition(offset: inputController.text.length),
+                        );
+                        inputFocus.requestFocus();
+                      },
+                    ),
                   const MonetizationBanner(),
                   ChatInputBar(
                     controller: inputController,
@@ -1110,7 +1198,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                         .cancelSending(),
                     onAttach: _pickAttachment,
                     onMic: _toggleMic,
-                    isSending: state.isSending,
+                    isSending: state.isSending ||
+                        _pendingAttachments.any((a) => a.extractionFailed),
                     isListening: _isListening,
                     micLevel: _micLevel,
                     attachTooltip: strings.attach,
@@ -1124,10 +1213,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                           (entry) => AttachmentPreviewItem(
                             kind: entry.value.kind,
                             label: entry.value.fileName,
-                            subtitle: strings.pick(
-                              it: 'Pronto per l\'invio - ${entry.value.kind}',
-                              en: 'Ready to send - ${entry.value.kind}',
-                            ),
+                            subtitle: entry.value.extractionFailed
+                                ? strings.attachmentFailed
+                                : strings.attachmentExtracted,
+                            extractionState: entry.value.extractionFailed
+                                ? AttachmentExtractionState.failed
+                                : AttachmentExtractionState.done,
                             previewPath: entry.value.previewPath,
                             previewBytes: entry.value.previewBytes,
                             onRemove: () => setState(
@@ -1141,6 +1232,47 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               ),
             ),
     );
+  }
+
+  String _buildAttachmentPromptForCurrentChat({
+    required String fileName,
+    required String text,
+    required String chatKind,
+    required AppStrings strings,
+  }) {
+    return switch (chatKind) {
+      Chat.kindDiet => strings.pick(
+        it:
+            'Analizza questo allegato per il percorso dieta `$fileName`.\n'
+            'Estrai solo informazioni utili per organizzare pasti, vincoli, routine, lista spesa o aderenza pratica. '
+            'Se emergono temi clinici, farmaci, esami o patologie, segnala che vanno discussi con un professionista.\n\n$text',
+        en:
+            'Analyze this attachment for the diet workflow `$fileName`.\n'
+            'Extract only information useful for meals, constraints, routine, shopping list, or practical adherence. '
+            'If clinical topics, medication, tests, or conditions appear, flag that they should be discussed with a professional.\n\n$text',
+      ),
+      Chat.kindMedical => strings.pick(
+        it:
+            'Analizza questo allegato per il percorso medico informativo `$fileName`.\n'
+            'Estrai dati leggibili, possibili incertezze, segnali da monitorare e domande da portare a un medico. '
+            'Non formulare diagnosi e non proporre dosaggi o terapie.\n\n$text',
+        en:
+            'Analyze this attachment for the informational medical workflow `$fileName`.\n'
+            'Extract readable data, uncertainties, signs to monitor, and questions for a clinician. '
+            'Do not diagnose and do not suggest dosages or treatments.\n\n$text',
+      ),
+      Chat.kindLegal => strings.pick(
+        it:
+            'Analizza questo allegato per il percorso legale informativo `$fileName`.\n'
+            'Distingui fatti, date, parti coinvolte, clausole o punti critici, documenti mancanti e domande da fare a un professionista. '
+            'Non presentare la risposta come consulenza legale professionale.\n\n$text',
+        en:
+            'Analyze this attachment for the informational legal workflow `$fileName`.\n'
+            'Separate facts, dates, parties, clauses or critical points, missing documents, and questions for a professional. '
+            'Do not present the answer as professional legal advice.\n\n$text',
+      ),
+      _ => strings.analyzeAttachment(fileName, text),
+    };
   }
 
   LLMProvider _safeProvider(LLMRegistry registry, String providerId) {
@@ -1159,40 +1291,101 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
   }
 
+  String _chatKindLabel(String? kind, AppStrings strings) {
+    return switch (kind) {
+      Chat.kindDiet => strings.pick(it: 'Dieta', en: 'Diet'),
+      Chat.kindMedical => strings.pick(it: 'Medico', en: 'Medical'),
+      Chat.kindLegal => strings.pick(it: 'Legale', en: 'Legal'),
+      _ => strings.pick(it: 'Chat', en: 'Chat'),
+    };
+  }
+
+  List<String> _followUpSuggestions(ChatState state, AppStrings strings) {
+    if (state.isSending ||
+        state.currentChat == null ||
+        state.messages.isEmpty ||
+        state.messages.last.role != 'assistant' ||
+        state.messages.last.isError) {
+      return const [];
+    }
+
+    return switch (state.currentChat!.kind) {
+      Chat.kindDiet => [
+        strings.pick(
+          it: 'Trasformalo in menu di 7 giorni',
+          en: 'Turn it into a 7-day menu',
+        ),
+        strings.pick(
+          it: 'Crea una lista spesa essenziale',
+          en: 'Create an essential shopping list',
+        ),
+        strings.pick(
+          it: 'Adattalo a poco tempo per cucinare',
+          en: 'Adapt it for little cooking time',
+        ),
+      ],
+      Chat.kindMedical => [
+        strings.pick(
+          it: 'Prepara un riepilogo per il medico',
+          en: 'Prepare a summary for the clinician',
+        ),
+        strings.pick(
+          it: 'Dimmi quali informazioni mancano',
+          en: 'Tell me what information is missing',
+        ),
+        strings.pick(
+          it: 'Crea una checklist di monitoraggio',
+          en: 'Create a monitoring checklist',
+        ),
+      ],
+      Chat.kindLegal => [
+        strings.pick(
+          it: 'Crea una checklist documenti',
+          en: 'Create a document checklist',
+        ),
+        strings.pick(
+          it: 'Riassumi i fatti per un professionista',
+          en: 'Summarize the facts for a professional',
+        ),
+        strings.pick(
+          it: 'Elenca le domande da fare',
+          en: 'List the questions to ask',
+        ),
+      ],
+      _ => [
+        strings.pick(it: 'Riassumi in breve', en: 'Summarize briefly'),
+        strings.pick(
+          it: 'Trasforma in checklist',
+          en: 'Turn this into a checklist',
+        ),
+        strings.pick(
+          it: 'Continua con il prossimo passo',
+          en: 'Continue with the next step',
+        ),
+      ],
+    };
+  }
+
   String _conversationTimeChip() {
     final now = DateTime.now();
     final hour = now.hour.toString().padLeft(2, '0');
     final minute = now.minute.toString().padLeft(2, '0');
-    return 'TODAY, $hour:$minute';
+    final strings = AppStrings.ofCode(
+      ref.read(chatControllerProvider).preferredLanguageCode,
+    );
+    return strings.todayChip('$hour:$minute');
   }
 
   Future<void> _showOnboardingDialog(String variant) async {
     if (!mounted) return;
-
-    final strings = AppStrings.ofCode(
-      ref.read(chatControllerProvider).preferredLanguageCode,
-    );
-    final title = variant == 'A'
-        ? strings.onboardingTitleA
-        : strings.onboardingTitleB;
-    final body = variant == 'A'
-        ? strings.onboardingBodyA
-        : strings.onboardingBodyB;
-
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(body),
-        actions: [
-          FilledButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(strings.start),
-          ),
-        ],
+    final languageCode =
+        ref.read(chatControllerProvider).preferredLanguageCode;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => OnboardingPage(languageCode: languageCode),
       ),
     );
-
     if (!mounted) return;
     await ref.read(chatControllerProvider.notifier).dismissOnboarding();
   }
@@ -1263,6 +1456,40 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 }
 
+class _FollowUpChips extends StatelessWidget {
+  const _FollowUpChips({required this.suggestions, required this.onSelected});
+
+  final List<String> suggestions;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return SizedBox(
+      height: 44,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        scrollDirection: Axis.horizontal,
+        itemCount: suggestions.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final suggestion = suggestions[index];
+          return ActionChip(
+            avatar: const Icon(Icons.add_comment_outlined, size: 16),
+            label: Text(suggestion),
+            side: BorderSide(color: theme.dividerColor),
+            backgroundColor: isDark
+                ? const Color(0xFF202927)
+                : const Color(0xFFFFFBF4),
+            onPressed: () => onSelected(suggestion),
+          );
+        },
+      ),
+    );
+  }
+}
+
 enum _AttachmentPickerKind { document, image, video }
 
 class _PendingAttachment {
@@ -1272,6 +1499,7 @@ class _PendingAttachment {
     required this.prompt,
     this.previewPath,
     this.previewBytes,
+    this.extractionFailed = false,
   });
 
   final String fileName;
@@ -1279,6 +1507,7 @@ class _PendingAttachment {
   final String prompt;
   final String? previewPath;
   final Uint8List? previewBytes;
+  final bool extractionFailed;
 }
 
 class _AttachmentOptionTile extends StatelessWidget {
@@ -1350,4 +1579,3 @@ class _AttachmentOptionTile extends StatelessWidget {
     );
   }
 }
-
